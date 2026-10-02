@@ -16,8 +16,7 @@ struct TableTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PageHeader(title: model.ref.name, subtitle: subtitle) {
-                Rectangle().fill(Theme.border).frame(width: 1, height: 22)
+            PageHeader(title: model.ref.name, subtitle: subtitle, separatesLeading: true) {
                 UnderlineTabs(items: TableMode.allCases.map { ($0, $0.rawValue) }, selection: $model.mode)
             } trailing: {
                 Button { model.workspace?.startExport([model.ref]) } label: {
@@ -91,6 +90,8 @@ private struct Pager: View {
                 Image(systemName: "list.number").font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
                 Text(label).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.textPrimary)
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .padding(.horizontal, 10)
             .help(model.lastSQL)

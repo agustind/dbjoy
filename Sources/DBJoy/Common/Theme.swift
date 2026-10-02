@@ -62,7 +62,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
-            .labelStyle(.titleAndIcon)
+            .lineLimit(1)
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 12)
             .frame(height: 30)
@@ -82,6 +82,7 @@ struct OutlineButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
+            .lineLimit(1)
             .foregroundStyle(isActive ? Theme.accentText : Theme.textPrimary)
             .padding(.horizontal, 11)
             .frame(height: 30)
@@ -145,6 +146,8 @@ struct UnderlineTabs<Value: Hashable>: View {
                 Button { selection = item.value } label: {
                     Text(item.title)
                         .font(.system(size: 14, weight: .medium))
+                        .lineLimit(1)
+                        .fixedSize()
                         .foregroundStyle(selected ? Theme.accentText : Theme.textSecondary)
                         .padding(.vertical, 6)
                         .overlay(alignment: .bottom) {
@@ -229,30 +232,63 @@ struct PageHeader<Leading: View, Trailing: View, Toolbar: View>: View {
     var title: String
     var subtitle: String?
     var showsToolbar = true
+    /// Draws a divider between the title and `leading` when they share a row.
+    var separatesLeading = false
     @ViewBuilder var leading: Leading
     @ViewBuilder var trailing: Trailing
     @ViewBuilder var toolbar: Toolbar
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 14) {
-                VStack(alignment: .leading, spacing: 1) {
-                    if let subtitle {
-                        Text(subtitle).font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.textTertiary)
-                            .lineLimit(1)
+            // Pick the first layout that fits: one row, then tabs on their own row,
+            // then icon-only actions.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 14) {
+                    titleBlock
+                    if separatesLeading {
+                        Rectangle().fill(Theme.border).frame(width: 1, height: 22)
                     }
-                    Text(title).font(.system(size: 21, weight: .bold)).foregroundStyle(Theme.textPrimary).lineLimit(1)
+                    leading
+                    Spacer(minLength: 12)
+                    trailing
                 }
-                leading
-                Spacer(minLength: 12)
-                trailing
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .center, spacing: 10) {
+                        titleBlock
+                        Spacer(minLength: 12)
+                        trailing
+                    }
+                    HStack(spacing: 14) { leading }
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .center, spacing: 10) {
+                        titleBlock
+                        Spacer(minLength: 12)
+                        trailing.labelStyle(.iconOnly)
+                    }
+                    HStack(spacing: 14) { leading }
+                }
             }
             if showsToolbar {
-                HStack(spacing: 8) { toolbar }
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { toolbar }
+                    HStack(spacing: 8) { toolbar }.labelStyle(.iconOnly)
+                }
             }
         }
         .padding(.horizontal, 20)
         .padding(.top, 14)
         .padding(.bottom, 12)
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            if let subtitle {
+                Text(subtitle).font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.textTertiary)
+                    .lineLimit(1)
+            }
+            Text(title).font(.system(size: 21, weight: .bold)).foregroundStyle(Theme.textPrimary).lineLimit(1)
+        }
+        .help(title)
     }
 }
