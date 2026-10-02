@@ -15,6 +15,8 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 
 ### Connections
 - Saved connections grouped into folders and tagged by environment: local, development, testing, staging, production
+- Paste a connection string (`postgres://user:pass@host:5432/db?sslmode=require` or `host=… dbname=…`) to fill in a
+  new connection; DBJoy also offers one it finds on the clipboard
 - Passwords stored in the macOS Keychain; SSL modes supported
 - Read-only connections, enforced by the server
 - Each connection opens in its own window, and several can be open at once
@@ -26,6 +28,7 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 
 ### Data
 - Paged grid with column sorting, a row details panel for long values, and copy as TSV or INSERT
+- Batch editing: select several rows and open **Row details** to change a field on all of them at once
 - ⌘F search by field and operator (contains, equals, ranges, IN, IS NULL, raw SQL…) with editable results
 - Jump from a foreign-key value to the row it references
 

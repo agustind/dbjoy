@@ -42,6 +42,7 @@ struct TableTabView: View {
                         Label("Row details", systemImage: "sidebar.right")
                     }
                     .buttonStyle(.outline(active: model.isInspectorVisible))
+                    .help("Show and edit the selected rows")
                     Spacer()
                     Pager(model: model)
                 } else {
@@ -326,84 +327,150 @@ private struct FilterBar: View {
 private struct RowInspector: View {
     @Bindable var model: TableTabModel
 
+    /// Selected rows that can be shown (rows marked for deletion are left out).
+    private var rows: [Int] {
+        model.selectedRows.filter { $0 < model.displayRowCount && model.rowState($0) != .deleted }.sorted()
+    }
+
+    private var isBatch: Bool { rows.count > 1 }
+
     var body: some View {
-        if let row = model.selectedRows.first, row < model.displayRowCount {
+        if rows.isEmpty {
+            VStack(spacing: 8) {
+                Image(systemName: "sidebar.right").font(.system(size: 24, weight: .light)).foregroundStyle(Theme.textTertiary)
+                Text("Select rows to see their details").font(.system(size: 13)).foregroundStyle(Theme.textSecondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if isBatch {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "square.stack.3d.up").foregroundStyle(Theme.accentText)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Editing \(rows.count) rows").font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(Theme.accentText)
+                                Text("Changes apply to every selected row. “Mixed” fields stay as they are unless you change them.")
+                                    .font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
+                            }
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Theme.accentFill, in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.accentStroke, lineWidth: 1))
+                    }
                     ForEach(Array(model.columns.enumerated()), id: \.offset) { index, column in
-                        field(row: row, index: index, column: column)
+                        field(index: index, column: column)
                     }
                 }
                 .padding(16)
             }
-        } else {
-            VStack(spacing: 8) {
-                Image(systemName: "sidebar.right").font(.system(size: 24, weight: .light)).foregroundStyle(Theme.textTertiary)
-                Text("Select a row to see its details").font(.system(size: 13)).foregroundStyle(Theme.textSecondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
+    /// The value shared by all selected rows, or `nil` when they differ.
+    private func commonValue(_ column: Int) -> CellValue? {
+        let values = rows.map { model.value(row: $0, column: column).value }
+        guard let first = values.first, values.allSatisfy({ $0 == first }) else { return nil }
+        return first
+    }
+
+    private func setAll(_ value: CellValue, column: Int) {
+        for row in rows where model.value(row: row, column: column).value != value {
+            model.setValue(value, row: row, column: column)
+        }
+    }
+
+    private func isEditable(_ index: Int, column: ResultColumn) -> Bool {
+        guard model.isEditable, model.isColumnEditable(index) else { return false }
+        // Giving several rows the same key would violate uniqueness.
+        return !(isBatch && (model.structure?.primaryKey.contains(column.name) ?? false))
+    }
+
     @ViewBuilder
-    private func field(row: Int, index: Int, column: ResultColumn) -> some View {
-        let cell = model.value(row: row, column: index)
+    private func field(index: Int, column: ResultColumn) -> some View {
+        let common = commonValue(index)
+        let editable = isEditable(index, column: column)
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(column.name.uppercased())
                     .font(.system(size: 11, weight: .semibold)).tracking(0.5)
                     .foregroundStyle(Theme.textSecondary)
                 Text(column.typeName).font(.system(size: 11)).foregroundStyle(Theme.textTertiary)
+                if common == nil {
+                    Text("MIXED")
+                        .font(.system(size: 9, weight: .bold)).tracking(0.4)
+                        .foregroundStyle(Theme.accentText)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Theme.accentFill, in: RoundedRectangle(cornerRadius: 4))
+                }
                 Spacer()
-                if model.isEditable, cell.state != .deleted, model.isColumnEditable(index) {
+                if editable {
                     Menu {
                         if column.category == .temporal {
-                            Button("Set to NOW()") { model.setValue(.expression("now()"), row: row, column: index) }
+                            Button("Set to NOW()") { setAll(.expression("now()"), column: index) }
                         }
                         if column.typeName == "uuid" {
-                            Button("Generate UUID") { model.setValue(.expression("gen_random_uuid()"), row: row, column: index) }
+                            Button(isBatch ? "Generate UUIDs" : "Generate UUID") { setAll(.expression("gen_random_uuid()"), column: index) }
                         }
-                        Button("Set NULL") { model.setValue(.null, row: row, column: index) }
-                        Button("Set DEFAULT") { model.setValue(.defaultValue, row: row, column: index) }
+                        if model.isColumnNullable(index) {
+                            Button("Set NULL") { setAll(.null, column: index) }
+                        }
+                        Button("Set DEFAULT") { setAll(.defaultValue, column: index) }
                     } label: { Image(systemName: "ellipsis.circle") }
                         .menuStyle(.borderlessButton)
                         .fixedSize()
                 }
             }
-            if model.isEditable, cell.state != .deleted, model.isColumnEditable(index) {
+            if editable {
                 if let options = model.options(forColumn: index) {
-                    Picker("", selection: Binding<String?>(
-                        get: { if case .value(let text) = model.value(row: row, column: index).value { text } else { nil } },
-                        set: { model.setValue($0.map(CellValue.value) ?? .null, row: row, column: index) })
+                    Picker("", selection: Binding<String>(
+                        get: {
+                            switch common {
+                            case .value(let text)?: text
+                            case .null?: Self.nullTag
+                            default: Self.mixedTag
+                            }
+                        },
+                        set: { tag in
+                            guard tag != Self.mixedTag else { return }
+                            setAll(tag == Self.nullTag ? .null : .value(tag), column: index)
+                        })
                     ) {
-                        ForEach(options, id: \.self) { Text($0).tag(Optional($0)) }
+                        if common == nil {
+                            Text("Mixed").tag(Self.mixedTag)
+                        }
+                        ForEach(options, id: \.self) { Text($0).tag($0) }
                         if model.isColumnNullable(index) {
                             Divider()
-                            Text("NULL").tag(String?.none)
+                            Text("NULL").tag(Self.nullTag)
                         }
                     }
                     .labelsHidden()
                 } else {
-                    InspectorTextField(value: cell.value, category: column.category,
-                                       placeholder: placeholder(cell.value)) { edited in
-                        if edited != model.value(row: row, column: index).value {
-                            model.setValue(edited, row: row, column: index)
-                        }
+                    InspectorTextField(value: common, category: column.category,
+                                       placeholder: common.map(placeholder) ?? "Mixed") { edited in
+                        setAll(edited, column: index)
                     }
-                    .id("\(row)-\(index)")
-                    if case .expression = cell.value {
+                    .id("\(rows)-\(index)")
+                    if case .expression = common {
                         Label("SQL expression, evaluated on commit", systemImage: "function")
                             .font(.system(size: 11)).foregroundStyle(Theme.accentText)
                     }
                 }
             } else {
-                Text(display(cell.value))
+                Text(common.map(display) ?? "Mixed")
                     .textSelection(.enabled)
-                    .foregroundStyle(cell.value == .null ? .tertiary : .primary)
+                    .foregroundStyle(common == nil || common == .null ? Theme.textTertiary : Theme.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .help(isBatch && model.structure?.primaryKey.contains(column.name) == true
+                          ? "Primary keys can't be batch-edited" : "")
             }
         }
     }
+
+    private static let mixedTag = "\u{0}mixed"
+    private static let nullTag = "\u{0}null"
 
     private func placeholder(_ value: CellValue) -> String {
         switch value {
@@ -423,9 +490,9 @@ private struct RowInspector: View {
 }
 
 /// Text field that edits a draft and interprets it (literal, NULL, `=expression`, `now()`…) only
-/// when the user presses Return or leaves the field.
+/// when the user presses Return or leaves the field. `value` is nil when selected rows differ.
 private struct InspectorTextField: View {
-    var value: CellValue
+    var value: CellValue?
     var category: ValueCategory
     var placeholder: String
     var commit: (CellValue) -> Void
@@ -438,9 +505,9 @@ private struct InspectorTextField: View {
             .lineLimit(1...10)
             .font(category == .json ? .body.monospaced() : .body)
             .focused($focused)
-            .onAppear { draft = value.editingText }
+            .onAppear { draft = value?.editingText ?? "" }
             .onChange(of: value) { _, newValue in
-                if !focused { draft = newValue.editingText }
+                if !focused { draft = newValue?.editingText ?? "" }
             }
             .onChange(of: focused) { _, isFocused in
                 if !isFocused { save() }
@@ -449,6 +516,12 @@ private struct InspectorTextField: View {
     }
 
     private func save() {
+        guard let value else {
+            // Mixed values: only an actual entry applies to all rows.
+            if !draft.isEmpty { commit(CellValue.parseInput(draft, category: category)) }
+            return
+        }
+        if draft == value.editingText { return }
         if draft.isEmpty, value == .null || value == .defaultValue { return }
         commit(CellValue.parseInput(draft, category: category))
     }
