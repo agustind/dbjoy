@@ -28,6 +28,12 @@ struct DBJoyApp: App {
         Settings {
             SettingsView()
         }
+
+        Window("About DBJoy", id: "about") {
+            AboutView()
+        }
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
     }
 }
 
@@ -62,6 +68,10 @@ struct AppCommands: Commands {
     }
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About DBJoy") { openWindow(id: "about") }
+        }
+
         CommandGroup(before: .toolbar) {
             Picker("Appearance", selection: Binding(get: { appearance }, set: { mode in
                 appearance = mode
