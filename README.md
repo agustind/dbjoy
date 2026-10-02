@@ -17,6 +17,17 @@ open build/DBJoy.app
 
 Or open `Package.swift` in Xcode and run the `DBJoy` scheme.
 
+### Distributing
+
+```sh
+scripts/make-dmg.sh              # build/DBJoy-<version>.dmg
+```
+
+The app bundles libpq and its OpenSSL/Kerberos dependencies in `Contents/Frameworks`, so it runs on
+Apple Silicon Macs without Homebrew. It's signed with the first Developer ID / Apple Development identity
+in your keychain (override with `DBJOY_SIGN_IDENTITY`). To notarize, store credentials once with
+`xcrun notarytool store-credentials dbjoy …` and run `DBJOY_NOTARY_PROFILE=dbjoy scripts/make-dmg.sh`.
+
 ### Sample database
 
 ```sh
