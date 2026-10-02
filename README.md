@@ -53,6 +53,9 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Full restorable backup via `pg_dump`
 - Rows stream from a single consistent snapshot, so large tables don't load into memory
 
+### Appearance
+- Light and dark themes; follows the system by default, or pick one in **View → Appearance** or Settings (⌘,)
+
 ## Keyboard shortcuts
 
 | Action | Keys |
@@ -72,6 +75,7 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 | Completion | typing, Esc or ⌃Space |
 | Edit cell | double-click or Return; Tab moves to the next cell |
 | Delete rows | ⌫ |
+| Settings | ⌘, |
 
 ## Development
 

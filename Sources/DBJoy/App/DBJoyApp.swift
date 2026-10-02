@@ -24,6 +24,10 @@ struct DBJoyApp: App {
         }
         .defaultSize(width: 1280, height: 820)
         .commands { AppCommands() }
+
+        Settings {
+            SettingsView()
+        }
     }
 }
 
@@ -31,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when launched as a bare executable (swift run) rather than an .app bundle.
         NSApp.setActivationPolicy(.regular)
+        AppearanceMode.current.apply()
         NSApp.activate()
     }
 
@@ -44,6 +49,7 @@ extension FocusedValues {
 struct AppCommands: Commands {
     @FocusedValue(\.workspace) private var workspace
     @Environment(\.openWindow) private var openWindow
+    @AppStorage(AppearanceMode.storageKey) private var appearance: AppearanceMode = .system
 
     private var tableTab: TableTabModel? {
         if case .table(let model) = workspace?.selectedTab { return model }
@@ -56,6 +62,16 @@ struct AppCommands: Commands {
     }
 
     var body: some Commands {
+        CommandGroup(before: .toolbar) {
+            Picker("Appearance", selection: Binding(get: { appearance }, set: { mode in
+                appearance = mode
+                mode.apply()
+            })) {
+                ForEach(AppearanceMode.allCases) { Text($0.title).tag($0) }
+            }
+            Divider()
+        }
+
         CommandGroup(after: .newItem) {
             Button("New Query Tab") { workspace?.newQuery() }
                 .keyboardShortcut("t")
