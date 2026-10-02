@@ -21,10 +21,11 @@ if [ -n "$IDENTITY" ] && [ "$IDENTITY" != "-" ]; then
   codesign --force --timestamp --sign "$IDENTITY" "$DMG"
 fi
 
-# Notarize when a notarytool keychain profile is configured:
-#   xcrun notarytool store-credentials dbjoy --apple-id <id> --team-id <team> --password <app-specific>
-if [ -n "${DBJOY_NOTARY_PROFILE:-}" ]; then
-  xcrun notarytool submit "$DMG" --keychain-profile "$DBJOY_NOTARY_PROFILE" --wait
+# Notarize with a notarytool keychain profile (default "dondo"; set DBJOY_NOTARY_PROFILE= to skip).
+# Create one with: xcrun notarytool store-credentials <name> --apple-id <id> --team-id <team> --password <app-specific>
+NOTARY_PROFILE="${DBJOY_NOTARY_PROFILE-dondo}"
+if [ -n "$NOTARY_PROFILE" ]; then
+  xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
   xcrun stapler staple "$DMG"
 fi
 
