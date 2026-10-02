@@ -243,3 +243,27 @@ extension PostgresIntegrationTests {
         _ = try await db.query(reset[0])
     }
 }
+
+extension PostgresIntegrationTests {
+    @Test func expressionValuesAreEvaluatedByTheServer() async throws {
+        let db = try await connect()
+        defer { Task { await db.close() } }
+        let ref = ObjectRef(schema: "public", name: "type_showcase", kind: .table)
+        let before = try await db.query("SELECT c_timestamptz, c_date, c_uuid, c_text FROM type_showcase WHERE id = 3").rows
+        try await db.executeInTransaction([TransactionStatement(db.dialect.statement(for: .update(
+            key: [ColumnValue("id", .value("3"))],
+            values: [ColumnValue("c_timestamptz", CellValue.parseInput("NOW()", category: .temporal)),
+                     ColumnValue("c_date", CellValue.parseInput("CURRENT_DATE", category: .temporal)),
+                     ColumnValue("c_uuid", CellValue.parseInput("gen_random_uuid()", category: .other)),
+                     ColumnValue("c_text", CellValue.parseInput("=upper('abc')", category: .text))]), in: ref),
+            expectedRows: 1)])
+        let check = try await db.query("""
+            SELECT now() - c_timestamptz < interval '1 minute', c_date = current_date, c_uuid IS NOT NULL, c_text
+            FROM type_showcase WHERE id = 3
+            """)
+        #expect(check.rows == [["true", "true", "true", "ABC"]])
+        // Restore the all-NULL showcase row.
+        _ = try await db.query("UPDATE type_showcase SET c_timestamptz = NULL, c_date = NULL, c_uuid = NULL, c_text = NULL WHERE id = 3")
+        #expect(before == [[nil, nil, nil, nil]])
+    }
+}

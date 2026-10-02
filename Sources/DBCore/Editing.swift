@@ -75,9 +75,52 @@ public enum CellValue: Hashable, Sendable {
     case value(String)
     case null
     case defaultValue
+    /// Raw SQL such as `now()`, written into statements unquoted.
+    case expression(String)
 
     public init(_ string: String?) {
         self = string.map(CellValue.value) ?? .null
+    }
+
+    private static let valueKeywords: Set<String> = [
+        "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP", "LOCALTIME", "LOCALTIMESTAMP",
+        "CURRENT_USER", "SESSION_USER", "CURRENT_ROLE", "CURRENT_SCHEMA", "CURRENT_CATALOG",
+    ]
+
+    /// Interprets text typed into a cell.
+    ///
+    /// - A leading `=` always means a SQL expression: `=now() + interval '1 day'`.
+    ///   A leading `\=` stores a literal starting with `=`.
+    /// - For columns that aren't text, a function call (`now()`, `gen_random_uuid()`) or a SQL value
+    ///   keyword (`CURRENT_DATE`) is an expression, and `NULL` / `DEFAULT` set those values. Text columns
+    ///   keep such input literally, since it's valid text.
+    public static func parseInput(_ text: String, category: ValueCategory) -> CellValue {
+        if text.hasPrefix("\\=") { return .value(String(text.dropFirst())) }
+        if text.hasPrefix("="), text.count > 1 {
+            let expression = text.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
+            return expression.isEmpty ? .value(text) : .expression(expression)
+        }
+        guard category != .text else { return .value(text) }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch trimmed.uppercased() {
+        case "NULL": return .null
+        case "DEFAULT": return .defaultValue
+        case let word where valueKeywords.contains(word): return .expression(trimmed)
+        default: break
+        }
+        if trimmed.wholeMatch(of: /[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?\s*\(.*\)/.dotMatchesNewlines()) != nil {
+            return .expression(trimmed)
+        }
+        return .value(text)
+    }
+
+    /// Text shown while editing; parses back to the same value with `parseInput`.
+    public var editingText: String {
+        switch self {
+        case .value(let text): text.hasPrefix("=") ? "\\" + text : text
+        case .expression(let expression): "=" + expression
+        case .null, .defaultValue: ""
+        }
     }
 }
 
@@ -256,6 +299,7 @@ public extension SQLDialect {
         case .value(let string): quoteLiteral(string)
         case .null: "NULL"
         case .defaultValue: "DEFAULT"
+        case .expression(let expression): expression
         }
     }
 
@@ -263,7 +307,7 @@ public extension SQLDialect {
         key.map { kv in
             switch kv.value {
             case .null, .defaultValue: "\(quoteIdentifier(kv.column)) IS NULL"
-            case .value: "\(quoteIdentifier(kv.column)) = \(sqlValue(kv.value))"
+            case .value, .expression: "\(quoteIdentifier(kv.column)) = \(sqlValue(kv.value))"
             }
         }.joined(separator: " AND ")
     }

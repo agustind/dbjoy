@@ -357,6 +357,12 @@ private struct RowInspector: View {
                 Spacer()
                 if model.isEditable, cell.state != .deleted, model.isColumnEditable(index) {
                     Menu {
+                        if column.category == .temporal {
+                            Button("Set to NOW()") { model.setValue(.expression("now()"), row: row, column: index) }
+                        }
+                        if column.typeName == "uuid" {
+                            Button("Generate UUID") { model.setValue(.expression("gen_random_uuid()"), row: row, column: index) }
+                        }
                         Button("Set NULL") { model.setValue(.null, row: row, column: index) }
                         Button("Set DEFAULT") { model.setValue(.defaultValue, row: row, column: index) }
                     } label: { Image(systemName: "ellipsis.circle") }
@@ -378,13 +384,17 @@ private struct RowInspector: View {
                     }
                     .labelsHidden()
                 } else {
-                    TextField(placeholder(cell.value), text: Binding(
-                        get: { if case .value(let text) = model.value(row: row, column: index).value { text } else { "" } },
-                        set: { model.setValue(.value($0), row: row, column: index) }),
-                        axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1...10)
-                        .font(column.category == .json ? .body.monospaced() : .body)
+                    InspectorTextField(value: cell.value, category: column.category,
+                                       placeholder: placeholder(cell.value)) { edited in
+                        if edited != model.value(row: row, column: index).value {
+                            model.setValue(edited, row: row, column: index)
+                        }
+                    }
+                    .id("\(row)-\(index)")
+                    if case .expression = cell.value {
+                        Label("SQL expression, evaluated on commit", systemImage: "function")
+                            .font(.system(size: 11)).foregroundStyle(Theme.accentText)
+                    }
                 }
             } else {
                 Text(display(cell.value))
@@ -399,13 +409,48 @@ private struct RowInspector: View {
         switch value {
         case .null: "NULL"
         case .defaultValue: "DEFAULT"
-        case .value: ""
+        case .value, .expression: ""
         }
     }
 
     private func display(_ value: CellValue) -> String {
-        if case .value(let text) = value { return text }
-        return placeholder(value)
+        switch value {
+        case .value(let text): text
+        case .expression(let expression): "=" + expression
+        default: placeholder(value)
+        }
+    }
+}
+
+/// Text field that edits a draft and interprets it (literal, NULL, `=expression`, `now()`…) only
+/// when the user presses Return or leaves the field.
+private struct InspectorTextField: View {
+    var value: CellValue
+    var category: ValueCategory
+    var placeholder: String
+    var commit: (CellValue) -> Void
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $draft, axis: .vertical)
+            .textFieldStyle(.roundedBorder)
+            .lineLimit(1...10)
+            .font(category == .json ? .body.monospaced() : .body)
+            .focused($focused)
+            .onAppear { draft = value.editingText }
+            .onChange(of: value) { _, newValue in
+                if !focused { draft = newValue.editingText }
+            }
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { save() }
+            }
+            .onSubmit(save)
+    }
+
+    private func save() {
+        if draft.isEmpty, value == .null || value == .defaultValue { return }
+        commit(CellValue.parseInput(draft, category: category))
     }
 }
 

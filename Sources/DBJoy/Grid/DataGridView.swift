@@ -234,11 +234,10 @@ struct DataGridView: NSViewRepresentable {
             focusedColumn = column
             editingCell = (row, column)
             editCancelled = false
-            if case .value(let text) = parent.value(row, column).value {
-                field.stringValue = text
-            } else {
-                field.stringValue = ""
-            }
+            field.stringValue = parent.value(row, column).value.editingText
+            field.placeholderString = parent.columns[column].category == .temporal
+                ? "Value, or NOW() / =expression" : "Value, or =expression"
+            field.font = GridCellView.editingFont
             field.textColor = Theme.textPrimaryNS
             field.isEditable = true
             tableView.scrollColumnToVisible(viewColumn)
@@ -319,11 +318,9 @@ struct DataGridView: NSViewRepresentable {
             if !editCancelled, let (row, column) = editingCell, row < parent.rowCount {
                 let text = field.stringValue
                 let original = parent.value(row, column).value
-                let unchanged: Bool = switch original {
-                case .value(let current): current == text
-                case .null, .defaultValue: text.isEmpty
-                }
-                if !unchanged { parent.actions.setValue?(.value(text), row, column) }
+                let edited = CellValue.parseInput(text, category: parent.columns[column].category)
+                let unchanged = edited == original || (text.isEmpty && (original == .null || original == .defaultValue))
+                if !unchanged { parent.actions.setValue?(edited, row, column) }
             }
             finishEditing(field)
         }
@@ -347,6 +344,7 @@ struct DataGridView: NSViewRepresentable {
                     case .value(let text): text.replacingOccurrences(of: "\t", with: " ").replacingOccurrences(of: "\n", with: " ")
                     case .null: "NULL"
                     case .defaultValue: "DEFAULT"
+                    case .expression(let expression): expression
                     }
                 }.joined(separator: "\t")
             }.joined(separator: "\n")
@@ -417,6 +415,10 @@ struct DataGridView: NSViewRepresentable {
             if parent.isEditable {
                 menu.addItem(.separator())
                 if let column, parent.isColumnEditable(column) {
+                    let info = parent.columns[column]
+                    if info.category == .temporal { add("Set to NOW()", #selector(setNow)) }
+                    if info.typeName == "uuid" { add("Generate UUID", #selector(setUUID)) }
+                    add("Set SQL Expression…", #selector(setExpression))
                     if parent.isColumnNullable(column) { add("Set NULL", #selector(setNull)) }
                     add("Set DEFAULT", #selector(setDefault))
                     add("Set Empty String", #selector(setEmpty))
@@ -462,6 +464,27 @@ struct DataGridView: NSViewRepresentable {
         }
 
         @objc private func setNull() { setTargetCells(.null) }
+        @objc private func setNow() { setTargetCells(.expression("now()")) }
+        @objc private func setUUID() { setTargetCells(.expression("gen_random_uuid()")) }
+
+        @objc private func setExpression() {
+            guard let column = menuTarget.column, let row = menuTarget.rows.first else { return }
+            let alert = NSAlert()
+            alert.messageText = "SQL expression for \(parent.columns[column].name)"
+            alert.informativeText = "Evaluated by the server when you commit, e.g. now() + interval '1 day', lower(email), gen_random_uuid()."
+            let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+            input.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+            if case .expression(let current) = parent.value(row, column).value { input.stringValue = current }
+            input.placeholderString = "now()"
+            alert.accessoryView = input
+            alert.addButton(withTitle: "Set")
+            alert.addButton(withTitle: "Cancel")
+            alert.window.initialFirstResponder = input
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            let expression = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !expression.isEmpty else { return }
+            setTargetCells(.expression(expression))
+        }
         @objc private func setDefault() { setTargetCells(.defaultValue) }
         @objc private func setEmpty() { setTargetCells(.value("")) }
 
@@ -510,6 +533,9 @@ enum GridMetrics {
 final class GridCellView: NSTableCellView {
     private static let font = NSFont.systemFont(ofSize: 13)
     private static let numberFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+    static let editingFont = NSFont.systemFont(ofSize: 13)
+    private static let expressionFont = NSFontManager.shared.convert(NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
+                                                                     toHaveTrait: .italicFontMask)
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -535,6 +561,7 @@ final class GridCellView: NSTableCellView {
     func configure(value: CellValue, state: CellState, category: ValueCategory) {
         guard let field = textField else { return }
         field.isEditable = false
+        field.placeholderString = nil
         field.font = category == .number ? Self.numberFont : Self.font
         field.alignment = category == .number ? .right : .left
         var attributes: [NSAttributedString.Key: Any] = [:]
@@ -549,6 +576,11 @@ final class GridCellView: NSTableCellView {
         case .defaultValue:
             field.stringValue = "DEFAULT"
             field.textColor = Theme.textTertiaryNS
+        case .expression(let expression):
+            // Pending SQL expression; the real value appears after commit.
+            field.stringValue = expression.replacingOccurrences(of: "\n", with: " ")
+            field.textColor = Theme.accentTextNS
+            field.font = Self.expressionFont
         }
         if state == .deleted {
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue

@@ -33,6 +33,9 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Edits are staged and color-coded: modified, inserted, deleted
 - ⌘S commits everything in one transaction; each statement must affect exactly one row or the whole batch rolls back
 - Dropdown editors for booleans, enum types and `CHECK (col IN (...))` lists; generated columns are read-only
+- SQL functions as values: type `NOW()`, `CURRENT_DATE` or `gen_random_uuid()` in date, number or UUID cells, or start
+  any cell with `=` for an expression (`=now() + interval '1 day'`, `=upper('x')`); the server computes the value on
+  commit. Type `\=` to store text that starts with `=`
 - Tables without a primary key are read-only
 - On production connections, every write shows its SQL for review and asks for confirmation; drop and truncate always confirm
 
