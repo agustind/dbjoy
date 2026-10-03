@@ -82,7 +82,11 @@ struct ConnectionStringTests {
         #expect(config.database == "app")
         #expect(config.sslMode == .verifyFull)
         #expect(config.options["sslrootcert"] == "/tmp/ca.pem")
-        #expect(config.name == "app on db.example.com")
+        #expect(config.name == "app on db")
+        #expect(ConnectionString.suggestedName(database: "staging", host: "ep-crimson-field-a4lnycv1.aws-us-east-1.pg.laravel.cloud")
+                == "staging on ep-crimson-field-a4lnycv1")
+        #expect(ConnectionString.suggestedName(database: nil, host: "10.0.0.12") == "10.0.0.12")
+        #expect(ConnectionString.suggestedName(database: "app", host: nil) == "app on localhost")
 
         var named = ConnectionConfig(name: "Prod")
         parsed.apply(to: &named)

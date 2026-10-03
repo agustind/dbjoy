@@ -44,6 +44,8 @@ struct SidebarView: View {
 
             footer
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .clipped()
     }
 
     // MARK: Header
@@ -51,19 +53,15 @@ struct SidebarView: View {
     private var header: some View {
         HStack(spacing: 10) {
             ZStack {
-                Circle().fill(Theme.accent)
+                // Colored by environment so it's clear what kind of server this window is on.
+                Circle().fill(model.config.environment.color.gradient)
                 Image(systemName: "cylinder.split.1x2.fill")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.onAccent)
+                    .foregroundStyle(.white)
             }
             .frame(width: 30, height: 30)
-            .overlay(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(model.config.environment.color)
-                    .frame(width: 9, height: 9)
-                    .overlay(Circle().stroke(Theme.sidebarBackground, lineWidth: 2))
-                    .help(model.config.environment.displayName)
-            }
+            .help("\(model.config.environment.displayName) connection")
+            .accessibilityLabel("\(model.config.environment.displayName) connection")
 
             VStack(alignment: .leading, spacing: 1) {
                 Menu {
@@ -84,6 +82,7 @@ struct SidebarView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Theme.textPrimary)
                             .lineLimit(1)
+                            .truncationMode(.tail)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(Theme.textSecondary)
@@ -93,7 +92,7 @@ struct SidebarView: View {
                 .menuStyle(.button)
                 .buttonStyle(.plain)
                 .menuIndicator(.hidden)
-                .fixedSize()
+                .fixedSize(horizontal: false, vertical: true)
 
                 Menu {
                     ForEach(model.schemas, id: \.self) { name in
@@ -104,21 +103,27 @@ struct SidebarView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 4) {
-                        Text("\(model.config.displayName) · \(model.currentSchema)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Theme.textSecondary)
+                    HStack(spacing: 0) {
+                        // The connection name gives way first so the schema stays visible.
+                        Text(model.config.displayName)
                             .lineLimit(1)
+                            .truncationMode(.tail)
+                        Text(" · \(model.currentSchema)")
+                            .lineLimit(1)
+                            .layoutPriority(1)
+                        Spacer(minLength: 4).frame(maxWidth: 4)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 8, weight: .bold))
                             .foregroundStyle(Theme.textTertiary)
                     }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
                     .contentShape(Rectangle())
                 }
                 .menuStyle(.button)
                 .buttonStyle(.plain)
                 .menuIndicator(.hidden)
-                .fixedSize()
+                .fixedSize(horizontal: false, vertical: true)
                 .help("Schema")
             }
             Spacer(minLength: 0)

@@ -218,8 +218,18 @@ public struct ConnectionString: Equatable, Sendable {
         if let sslMode { config.sslMode = sslMode }
         for (key, value) in options { config.options[key] = value }
         if config.name.isEmpty {
-            let place = host ?? "localhost"
-            config.name = database.map { "\($0) on \(place)" } ?? place
+            config.name = Self.suggestedName(database: database, host: host)
         }
+    }
+
+    /// A short connection name: the database plus the first label of the host
+    /// (`staging on ep-crimson-field-a4lnycv1` rather than the full cloud hostname).
+    public static func suggestedName(database: String?, host: String?) -> String {
+        var place = host ?? "localhost"
+        let isIPAddress = place.contains(":") || place.allSatisfy { $0.isNumber || $0 == "." }
+        if !place.hasPrefix("/"), !isIPAddress, let first = place.split(separator: ".").first {
+            place = String(first)
+        }
+        return database.map { "\($0) on \(place)" } ?? place
     }
 }
