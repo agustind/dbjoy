@@ -158,6 +158,7 @@ struct UnderlineTabs<Value: Hashable>: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(item.title)
                 .accessibilityAddTraits(selected ? .isSelected : [])
+                .accessibilityIdentifier("tab-\(item.title)")
             }
         }
     }

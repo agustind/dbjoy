@@ -49,6 +49,9 @@ struct SQLEditorView: NSViewRepresentable {
         textView.setAccessibilityLabel("SQL editor")
 
         let scrollView = NSScrollView()
+        // Keep the gutter and its border from drawing outside the editor's frame.
+        scrollView.wantsLayer = true
+        scrollView.layer?.masksToBounds = true
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
@@ -451,6 +454,13 @@ final class LineNumberRulerView: NSRulerView {
     required init(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     @objc private func invalidate() { needsDisplay = true }
+
+    /// Draws the background, numbers and a faint separator; skips NSRulerView's default border.
+    override func draw(_ dirtyRect: NSRect) {
+        drawHashMarksAndLabels(in: dirtyRect)
+        Theme.separatorNS.setFill()
+        NSRect(x: bounds.maxX - 1, y: bounds.minY, width: 1, height: bounds.height).intersection(dirtyRect).fill()
+    }
 
     override func drawHashMarksAndLabels(in rect: NSRect) {
         guard let textView, let layoutManager = textView.layoutManager, let container = textView.textContainer else { return }

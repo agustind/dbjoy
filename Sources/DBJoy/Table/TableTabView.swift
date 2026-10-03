@@ -16,9 +16,14 @@ struct TableTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PageHeader(title: model.ref.name, subtitle: subtitle, separatesLeading: true) {
+            PageHeader(title: model.ref.name, subtitle: subtitle, showsToolbar: model.mode == .data, separatesLeading: true) {
                 UnderlineTabs(items: TableMode.allCases.map { ($0, $0.rawValue) }, selection: $model.mode)
             } trailing: {
+                if model.mode != .data {
+                    Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                        .buttonStyle(.outline)
+                        .help("Refresh (⌘R)")
+                }
                 Button { model.workspace?.startExport([model.ref]) } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
@@ -45,8 +50,6 @@ struct TableTabView: View {
                     .help("Show and edit the selected rows")
                     Spacer()
                     Pager(model: model)
-                } else {
-                    Spacer()
                 }
                 Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.outline)
