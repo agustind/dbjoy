@@ -85,8 +85,7 @@ struct ConnectionFormView: View {
                     TextField("Name", text: $config.name, prompt: Text("My database"))
                     Picker("Environment", selection: $config.environment) {
                         ForEach(ConnectionEnvironment.allCases) { env in
-                            Label(env.displayName, systemImage: "circle.fill")
-                                .foregroundStyle(env.color)
+                            Label { Text(env.displayName) } icon: { env.swatch }
                                 .tag(env)
                         }
                     }
