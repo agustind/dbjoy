@@ -267,3 +267,30 @@ extension PostgresIntegrationTests {
         #expect(before == [[nil, nil, nil, nil]])
     }
 }
+
+extension PostgresIntegrationTests {
+    @Test func plainTextDefaultsAreQuoted() async throws {
+        let db = try await connect()
+        defer { Task { await db.close() } }
+        let d = db.dialect
+        _ = try await db.query("DROP TABLE IF EXISTS public.default_check")
+        try await db.executeInTransaction(d.statements(for: CreateTableRequest(schema: "public", name: "default_check", columns: [
+            ColumnDefinition(name: "id", dataType: "bigserial", isNullable: false, isPrimaryKey: true),
+            ColumnDefinition(name: "created_at", dataType: "timestamp with time zone", isNullable: false, defaultValue: "now()"),
+            ColumnDefinition(name: "test", dataType: "integer"),
+            ColumnDefinition(name: "test2", dataType: "character varying(255)", defaultValue: "blabla"),
+        ])).map { TransactionStatement($0) })
+        _ = try await db.query("INSERT INTO public.default_check DEFAULT VALUES")
+        #expect(try await db.query("SELECT test2, created_at IS NOT NULL FROM public.default_check").rows == [["blabla", "true"]])
+
+        // Changing a default in the structure editor uses the same rule.
+        let ref = ObjectRef(schema: "public", name: "default_check", kind: .table)
+        let original = try await db.structure(of: ref).columns.map(ColumnDefinition.init)
+        var edited = original
+        edited[3].defaultValue = "hello world"
+        try await db.executeInTransaction(d.statements(for: TableSchemaChange(table: ref, original: original, columns: edited))
+            .map { TransactionStatement($0) })
+        #expect(try await db.structure(of: ref).columns[3].defaultValue == "'hello world'::character varying")
+        _ = try await db.query("DROP TABLE public.default_check")
+    }
+}

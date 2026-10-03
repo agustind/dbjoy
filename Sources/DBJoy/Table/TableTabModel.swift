@@ -476,4 +476,24 @@ final class CreateTableModel: Identifiable {
     var request: CreateTableRequest {
         CreateTableRequest(schema: schema, name: name.trimmingCharacters(in: .whitespaces), columns: columns, comment: comment)
     }
+
+    /// Why the table can't be created yet, or `nil` when it's ready.
+    func validationMessage(existingTables: Set<String>) -> String? {
+        let tableName = name.trimmingCharacters(in: .whitespaces)
+        if tableName.isEmpty { return "Enter a table name" }
+        if existingTables.contains(tableName) { return "A table named “\(tableName)” already exists in \(schema)" }
+        if columns.isEmpty { return "Add at least one column" }
+        if columns.contains(where: { $0.name.trimmingCharacters(in: .whitespaces).isEmpty }) {
+            return "Every column needs a name"
+        }
+        if let column = columns.first(where: { $0.dataType.trimmingCharacters(in: .whitespaces).isEmpty }) {
+            return "Column “\(column.name)” needs a type"
+        }
+        var seen = Set<String>()
+        for column in columns {
+            let columnName = column.name.trimmingCharacters(in: .whitespaces)
+            if !seen.insert(columnName).inserted { return "Duplicate column name “\(columnName)”" }
+        }
+        return nil
+    }
 }

@@ -171,37 +171,71 @@ struct CreateTableSheet: View {
     @Bindable var model: CreateTableModel
     var workspace: WorkspaceModel
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var nameFocused: Bool
+
+    private var existingTables: Set<String> {
+        let objects = model.schema == workspace.currentSchema ? workspace.objects : workspace.allObjects
+        return Set(objects.filter { $0.ref.schema == model.schema && $0.kind.hasRows }.map(\.name))
+    }
 
     var body: some View {
+        let problem = model.validationMessage(existingTables: existingTables)
         VStack(alignment: .leading, spacing: 12) {
             Text("Create Table").font(.headline)
-            HStack {
-                Picker("Schema", selection: $model.schema) {
-                    ForEach(workspace.schemas, id: \.self) { Text($0).tag($0) }
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
+                GridRow {
+                    Text("Name").gridColumnAlignment(.trailing)
+                    HStack(spacing: 8) {
+                        TextField("Table name", text: $model.name, prompt: Text("e.g. invoices"))
+                            .textFieldStyle(.roundedBorder)
+                            .focused($nameFocused)
+                        Picker("Schema", selection: $model.schema) {
+                            ForEach(workspace.schemas, id: \.self) { Text($0).tag($0) }
+                        }
+                        .fixedSize()
+                    }
                 }
-                .frame(width: 200)
-                TextField("Table name", text: $model.name)
+                GridRow {
+                    Text("Comment")
+                    TextField("Comment", text: $model.comment, prompt: Text("Optional"))
+                        .textFieldStyle(.roundedBorder)
+                }
             }
-            TextField("Comment", text: $model.comment)
             ColumnsEditor(columns: $model.columns, selection: $model.selectedColumns,
                           dataTypes: workspace.dialect?.dataTypes ?? [], allowsPrimaryKeyEditing: true)
+            Text("Defaults: plain text like pending is saved as a string; now(), 0, true or 'quoted' are used as SQL.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             HStack {
                 Button { model.columns.append(ColumnDefinition(name: "column_\(model.columns.count + 1)")) } label: {
                     Image(systemName: "plus")
                 }
+                .help("Add column")
                 Button {
                     model.columns.removeAll { model.selectedColumns.contains($0.id) }
                 } label: { Image(systemName: "minus") }
                     .disabled(model.selectedColumns.isEmpty)
+                    .help("Remove selected columns")
                 Spacer()
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                if let problem {
+                    Label(problem, systemImage: "info.circle")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("create-table-cancel")
                 Button("Review & Create…") { review() }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(model.name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(problem != nil)
+                    .help(problem ?? "Review the CREATE TABLE statement before running it")
             }
         }
         .padding(20)
-        .frame(width: 820, height: 480)
+        .frame(width: 820, height: 500)
+        .onAppear { nameFocused = true }
+        .task { await workspace.loadAllObjects() }
     }
 
     private func review() {

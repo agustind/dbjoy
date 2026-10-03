@@ -94,7 +94,7 @@ public struct PostgresDialect: SQLDialect {
             guard let originalName = column.originalName, let original = originals[originalName] else {
                 // New column.
                 var def = "ALTER TABLE \(table) ADD COLUMN \(col) \(column.dataType)"
-                if !column.defaultValue.isEmpty { def += " DEFAULT \(column.defaultValue)" }
+                if !column.defaultValue.isEmpty { def += " DEFAULT \(defaultExpression(column.defaultValue))" }
                 if !column.isNullable { def += " NOT NULL" }
                 statements.append(def + ";")
                 if !column.comment.isEmpty {
@@ -114,7 +114,7 @@ public struct PostgresDialect: SQLDialect {
             if column.defaultValue != original.defaultValue {
                 statements.append(column.defaultValue.isEmpty
                     ? "ALTER TABLE \(table) ALTER COLUMN \(col) DROP DEFAULT;"
-                    : "ALTER TABLE \(table) ALTER COLUMN \(col) SET DEFAULT \(column.defaultValue);")
+                    : "ALTER TABLE \(table) ALTER COLUMN \(col) SET DEFAULT \(defaultExpression(column.defaultValue));")
             }
             if column.comment != original.comment {
                 statements.append("COMMENT ON COLUMN \(table).\(col) IS \(column.comment.isEmpty ? "NULL" : quoteLiteral(column.comment));")
@@ -144,7 +144,7 @@ public struct PostgresDialect: SQLDialect {
         let columns = request.columns.filter { !$0.name.trimmingCharacters(in: .whitespaces).isEmpty }
         var lines = columns.map { column -> String in
             var def = "  \(quoteIdentifier(column.name)) \(column.dataType)"
-            if !column.defaultValue.isEmpty { def += " DEFAULT \(column.defaultValue)" }
+            if !column.defaultValue.isEmpty { def += " DEFAULT \(defaultExpression(column.defaultValue))" }
             if !column.isNullable { def += " NOT NULL" }
             return def
         }

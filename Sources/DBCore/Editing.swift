@@ -331,6 +331,22 @@ public extension SQLDialect {
 
     func resetSequenceStatements(for structure: TableStructure) -> [String] { [] }
 
+    /// Turns what the user typed as a column default into SQL. Expressions (numbers, quoted strings,
+    /// `true`/`false`/`null`, `CURRENT_TIMESTAMP`-style keywords, function calls, casts, operators) are
+    /// kept as-is; plain words like `pending` or `hello world` become string literals.
+    func defaultExpression(_ raw: String) -> String {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keywords: Set<String> = ["TRUE", "FALSE", "NULL", "CURRENT_DATE", "CURRENT_TIME", "CURRENT_TIMESTAMP",
+                                     "LOCALTIME", "LOCALTIMESTAMP", "CURRENT_USER", "SESSION_USER", "CURRENT_ROLE",
+                                     "CURRENT_SCHEMA", "CURRENT_CATALOG"]
+        if text.isEmpty || keywords.contains(text.uppercased()) { return text }
+        if text.wholeMatch(of: /[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?/) != nil { return text }
+        // Anything with SQL structure is an expression: a quoted literal, calls, casts, operators, arrays.
+        if text.hasPrefix("'") || text.contains(where: { "\"()[]:+*/%|<>=".contains($0) }) { return text }
+        if text.hasPrefix("-") { return text }
+        return quoteLiteral(text)
+    }
+
     func isWriteStatement(_ sql: String) -> Bool {
         let readOnly: Set<String> = ["SELECT", "SHOW", "EXPLAIN", "WITH", "VALUES", "TABLE", "BEGIN", "START",
                                      "COMMIT", "ROLLBACK", "END", "SET", "RESET", "DESCRIBE", "DESC"]

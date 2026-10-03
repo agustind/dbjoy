@@ -44,3 +44,21 @@ struct DialectDefaultsTests {
         #expect(!d.isWriteStatement("/* c */ (SELECT 1)"))
     }
 }
+
+struct DefaultExpressionTests {
+    let d = GenericDialect()
+
+    @Test func plainWordsBecomeLiterals() {
+        #expect(d.defaultExpression("blabla") == "'blabla'")
+        #expect(d.defaultExpression("hello world") == "'hello world'")
+        #expect(d.defaultExpression("O'Hara") == "'O''Hara'")
+        #expect(d.defaultExpression("pending ") == "'pending'")
+    }
+
+    @Test func expressionsStayAsIs() {
+        for sql in ["now()", "gen_random_uuid()", "0", "-1", "3.14", "1e3", "true", "FALSE", "null", "CURRENT_TIMESTAMP",
+                    "'draft'", "'draft'::text", "nextval('t_id_seq'::regclass)", "ARRAY[1,2]", "1 + 2", "now() + interval '1 day'"] {
+            #expect(d.defaultExpression(sql) == sql)
+        }
+    }
+}
