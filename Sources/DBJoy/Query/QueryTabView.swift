@@ -7,13 +7,19 @@ struct QueryTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PageHeader(title: model.title, subtitle: "SQL · \(workspace.currentDatabase)", showsToolbar: false) {
+            PageHeader(title: model.title,
+                       subtitle: model.fileURL.map { "\($0.deletingLastPathComponent().lastPathComponent)/ · \(workspace.currentDatabase)" }
+                           ?? "SQL · \(workspace.currentDatabase)",
+                       showsToolbar: false) {
                 if model.savedQueryID != nil {
                     Image(systemName: "bookmark.fill").font(.system(size: 12)).foregroundStyle(Theme.accentText)
                         .help("Saved query")
                 }
                 transactionBadge
             } trailing: {
+                Button { workspace.openSQLFiles() } label: { Label("Open file…", systemImage: "doc.text") }
+                    .buttonStyle(.outline)
+                    .help("Open a .sql file in the editor, optionally running it (⌘O)")
                 transactionControls
                 Button { model.isSaveSheetPresented = true } label: { Label("Save", systemImage: "square.and.arrow.down") }
                     .buttonStyle(.outline)
@@ -63,6 +69,11 @@ struct QueryTabView: View {
             }
         }
         .background(Theme.contentBackground)
+        .dropDestination(for: URL.self) { urls, _ in
+            let files = urls.filter { $0.isFileURL }
+            for url in files { workspace.openSQLFile(url, run: false) }
+            return !files.isEmpty
+        }
         .sheet(isPresented: $model.isSaveSheetPresented) {
             SaveQuerySheet(model: model)
         }
@@ -231,7 +242,9 @@ private struct ResultsPane: View {
                     .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 1) }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func icon(_ kind: QueryMessage.Kind) -> String {

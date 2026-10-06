@@ -96,6 +96,12 @@ struct AppCommands: Commands {
             Button("Open Anything…") { workspace?.isQuickOpenPresented = true }
                 .keyboardShortcut("p")
                 .disabled(workspace == nil)
+            Button("Open SQL File…") { workspace?.openSQLFiles() }
+                .keyboardShortcut("o")
+                .disabled(workspace == nil)
+            Button("Run SQL File…") { workspace?.openSQLFiles(run: true) }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+                .disabled(workspace == nil)
             Divider()
             Button("Show Connections") { openWindow(id: "welcome") }
                 .keyboardShortcut("k", modifiers: [.command, .shift])

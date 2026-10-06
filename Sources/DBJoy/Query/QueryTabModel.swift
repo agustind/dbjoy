@@ -23,6 +23,8 @@ final class QueryTabModel: Identifiable {
     var title: String
     var sql: String
     var savedQueryID: UUID?
+    /// The .sql file this tab was opened from, if any.
+    var fileURL: URL?
     /// Current editor selection (UTF-16), kept in sync by the editor.
     var selection = NSRange(location: 0, length: 0)
     /// Set to move the editor selection, e.g. to an error position.
@@ -69,6 +71,14 @@ final class QueryTabModel: Identifiable {
 
     func run(_ scope: Scope) {
         guard !isRunning, let (text, offset) = sqlToRun(scope), let workspace else { return }
+        if let (line, command) = Self.psqlMetaCommand(in: text) {
+            results = []
+            messages = [QueryMessage(kind: .error, text:
+                "Line \(line) is a psql command (\(command)). DBJoy talks to the server directly and can't run "
+                + "psql commands such as \\connect, \\copy, \\set or COPY … FROM stdin data. "
+                + "Remove them, or run this file with psql.")]
+            return
+        }
         workspace.guardWrite(text) { [self] in
             await execute(text, offset: offset, recordHistory: true)
         }
@@ -131,6 +141,35 @@ final class QueryTabModel: Identifiable {
 
     func cancel() {
         connection?.cancel()
+    }
+
+    // MARK: Files
+
+    /// Replaces the editor contents with a SQL file.
+    func load(contentsOf url: URL) throws {
+        let data = try Data(contentsOf: url)
+        guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
+            throw DatabaseError("\(url.lastPathComponent) isn't a text file.")
+        }
+        sql = text
+        fileURL = url
+        title = url.lastPathComponent
+        savedQueryID = nil
+        selection = NSRange(location: 0, length: 0)
+        results = []
+        messages = []
+    }
+
+    /// The first line starting with a psql backslash command, which the server can't execute.
+    static func psqlMetaCommand(in sql: String) -> (line: Int, command: String)? {
+        for (index, line) in sql.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("\\") {
+                let command = trimmed.split(separator: " ").first.map(String.init) ?? trimmed
+                return (index + 1, command)
+            }
+        }
+        return nil
     }
 
     func begin() { Task { await execute("BEGIN", recordHistory: false) } }

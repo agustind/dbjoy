@@ -1,7 +1,9 @@
+import AppKit
 import DBCore
 import Foundation
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 enum WorkspaceTab: Identifiable {
@@ -290,6 +292,53 @@ final class WorkspaceModel {
                                   sql: savedQuery?.sql ?? sql, savedQueryID: savedQuery?.id)
         tabs.append(.query(model))
         selectedTabID = model.id
+    }
+
+    // MARK: SQL files
+
+    private static let runAfterOpeningKey = "runSQLFilesAfterOpening"
+
+    /// Asks for one or more .sql files and opens each in a query tab. `run` forces running
+    /// (Run SQL File…); otherwise the dialog's "Run immediately" checkbox decides.
+    func openSQLFiles(run: Bool? = nil) {
+        let panel = NSOpenPanel()
+        panel.title = run == true ? "Run SQL File" : "Open SQL File"
+        panel.prompt = run == true ? "Run" : "Open"
+        panel.allowedContentTypes = [UTType(filenameExtension: "sql") ?? .plainText, .plainText]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        var checkbox: NSButton?
+        if run == nil {
+            let box = NSButton(checkboxWithTitle: "Run immediately", target: nil, action: nil)
+            box.state = UserDefaults.standard.bool(forKey: Self.runAfterOpeningKey) ? .on : .off
+            panel.accessoryView = box
+            panel.isAccessoryViewDisclosed = true
+            checkbox = box
+        }
+        guard panel.runModal() == .OK else { return }
+        let shouldRun = run ?? (checkbox?.state == .on)
+        if run == nil { UserDefaults.standard.set(shouldRun, forKey: Self.runAfterOpeningKey) }
+        for url in panel.urls { openSQLFile(url, run: shouldRun) }
+    }
+
+    /// Loads a SQL file into the current empty query tab or a new one, optionally running it.
+    func openSQLFile(_ url: URL, run: Bool) {
+        let tab: QueryTabModel
+        if case .query(let current) = selectedTab, current.sql.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !current.isRunning {
+            tab = current
+        } else {
+            newQuery()
+            guard case .query(let created) = selectedTab else { return }
+            tab = created
+        }
+        do {
+            try tab.load(contentsOf: url)
+        } catch {
+            errorMessage = "Couldn't open \(url.lastPathComponent): \(error.localizedDescription)"
+            return
+        }
+        if run { tab.run(.all) }
     }
 
     func openDiagram() {

@@ -55,6 +55,8 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Multiple result sets, server notices, and error positions that move the cursor
 - Each query tab has its own connection with Begin / Commit / Rollback and a live transaction indicator
 - Saved queries (per connection or shared) and per-connection history
+- Open `.sql` files (⌘O, or drag them onto a query tab) and optionally run them right away; Run SQL File… (⇧⌘O)
+  opens and runs in one step. psql-only commands such as `\connect` or `\copy` are flagged before anything runs
 
 ### Export
 - CSV or JSON (one file per table), or SQL `INSERT`s (one file, ordered by foreign keys, sequences reset)
@@ -79,6 +81,7 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 | Search rows / find in editor | ⌘F |
 | ER diagram | ⇧⌘E |
 | Export tables | ⌥⌘E |
+| Open SQL file / run SQL file | ⌘O / ⇧⌘O |
 | Next / previous tab | ⇧⌘] / ⇧⌘[ |
 | Completion | typing, Esc or ⌃Space |
 | Edit cell | double-click or Return; Tab moves to the next cell |
