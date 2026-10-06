@@ -54,10 +54,10 @@ struct SidebarView: View {
         HStack(spacing: 10) {
             ZStack {
                 // Colored by environment so it's clear what kind of server this window is on.
-                Circle().fill(model.config.environment.color.gradient)
+                Circle().fill(model.config.environment.fill)
                 Image(systemName: "cylinder.split.1x2.fill")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(model.config.environment.ink)
             }
             .frame(width: 30, height: 30)
             .help("\(model.config.environment.displayName) connection")

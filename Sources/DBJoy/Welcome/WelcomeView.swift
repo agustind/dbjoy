@@ -161,10 +161,10 @@ private struct ConnectionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8).fill(config.environment.color.opacity(0.18))
+                RoundedRectangle(cornerRadius: 8).fill(config.environment.fill)
                 Image(systemName: "cylinder.split.1x2")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(config.environment.color)
+                    .foregroundStyle(config.environment.ink)
             }
             .frame(width: 34, height: 34)
             VStack(alignment: .leading, spacing: 3) {

@@ -119,10 +119,10 @@ private struct StarredItem: View {
         Button(action: open) {
             HStack(spacing: 10) {
                 ZStack {
-                    Circle().fill(config.environment.color.gradient)
+                    Circle().fill(config.environment.fill)
                     Text(Self.initials(config.displayName))
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(config.environment.ink)
                 }
                 .frame(width: 32, height: 32)
                 .overlay(Circle().strokeBorder(isCurrent ? Theme.accent : .clear, lineWidth: 2).padding(-3))
