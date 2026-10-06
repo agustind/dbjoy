@@ -183,7 +183,9 @@ struct SidebarView: View {
             }
             .padding(.horizontal, 8)
             .padding(.bottom, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
             if !model.isLoadingObjects, filteredObjects.isEmpty {
                 Text(search.isEmpty ? "No objects in \(model.currentSchema)" : "No matches")
@@ -383,7 +385,9 @@ private struct SavedQueriesList: View {
                 }
             }
             .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
             if queries.isEmpty {
                 Text("Save a query from a query tab with ⌘S")
@@ -454,7 +458,9 @@ private struct HistoryList: View {
                 }
             }
             .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
             if entries.isEmpty {
                 Text("No queries yet").font(.system(size: 13)).foregroundStyle(Theme.textSecondary)

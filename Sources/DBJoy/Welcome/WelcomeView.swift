@@ -98,7 +98,9 @@ struct WelcomeView: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.bottom, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
             Rectangle().fill(Theme.separator).frame(height: 1)
