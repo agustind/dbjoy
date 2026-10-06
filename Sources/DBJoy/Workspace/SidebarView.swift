@@ -144,7 +144,7 @@ struct SidebarView: View {
     private var objectList: some View {
         let groups = Dictionary(grouping: filteredObjects, by: \.kind)
         return ScrollView {
-            LazyVStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 1) {
                 ForEach(ObjectKind.allCases, id: \.self) { kind in
                     if let objects = groups[kind], !objects.isEmpty {
                         let isExpanded = !collapsed.contains(kind) || !search.isEmpty
@@ -362,7 +362,7 @@ private struct SavedQueriesList: View {
             search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) || $0.sql.localizedCaseInsensitiveContains(search)
         }
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2) {
                 ForEach(queries) { query in
                     let isOpen: Bool = {
                         if case .query(let tab) = model.selectedTab { return tab.savedQueryID == query.id }
@@ -420,7 +420,7 @@ private struct HistoryList: View {
             search.isEmpty || $0.sql.localizedCaseInsensitiveContains(search)
         }
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 2) {
                 ForEach(entries.prefix(300)) { entry in
                     SidebarEntry(title: nil, sql: entry.sql) {
                         HStack(spacing: 5) {

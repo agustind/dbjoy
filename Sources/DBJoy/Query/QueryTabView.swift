@@ -218,7 +218,7 @@ private struct ResultsPane: View {
 
     private var messages: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(model.messages) { message in
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: icon(message.kind)).foregroundStyle(color(message.kind))
