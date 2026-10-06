@@ -33,6 +33,7 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @AppStorage(AppearanceMode.storageKey) private var appearance: AppearanceMode = .system
+    @AppStorage(StarredRail.newWindowKey) private var starredOpensNewWindow = false
 
     var body: some View {
         Form {
@@ -40,6 +41,17 @@ struct SettingsView: View {
                 ForEach(AppearanceMode.allCases) { Text($0.title).tag($0) }
             }
             .pickerStyle(.segmented)
+
+            Section {
+                Picker("Starred connections open in", selection: $starredOpensNewWindow) {
+                    Text("This window").tag(false)
+                    Text("A new window").tag(true)
+                }
+            } footer: {
+                Text("Hold ⌘ while clicking a starred connection to do the opposite.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .frame(width: 420)

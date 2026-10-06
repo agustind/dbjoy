@@ -20,6 +20,8 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Passwords stored in the macOS Keychain; SSL modes supported
 - Read-only connections, enforced by the server
 - Each connection opens in its own window, and several can be open at once
+- Star connections to pin them to a collapsible bar on the left of every window; one click switches that window to
+  the connection (or opens a new window, per Settings; ⌘-click does the opposite)
 
 ### Browsing
 - Database and schema switcher; tables, views, materialized views, foreign tables, functions and procedures

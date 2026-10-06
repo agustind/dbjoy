@@ -4,9 +4,12 @@ import SwiftUI
 /// Root of a connection window: handles connecting, password prompts and global sheets.
 struct WorkspaceRoot: View {
     @State private var model: WorkspaceModel
+    /// Switches this window to another saved connection.
+    var switchConnection: (UUID) -> Void
 
-    init(config: ConnectionConfig) {
+    init(config: ConnectionConfig, switchConnection: @escaping (UUID) -> Void) {
         _model = State(initialValue: WorkspaceModel(config: config))
+        self.switchConnection = switchConnection
     }
 
     var body: some View {
@@ -27,7 +30,7 @@ struct WorkspaceRoot: View {
                         .buttonStyle(.borderedProminent)
                 }
             case .connected:
-                WorkspaceView(model: model)
+                WorkspaceView(model: model, switchConnection: switchConnection)
             }
         }
         .background(Theme.contentBackground)
@@ -93,10 +96,14 @@ private struct PasswordPrompt: View {
 
 struct WorkspaceView: View {
     @Bindable var model: WorkspaceModel
+    var switchConnection: (UUID) -> Void
     @AppStorage("sidebarWidth") private var sidebarWidth: Double = 268
 
     var body: some View {
         HStack(spacing: 0) {
+            StarredRail(currentConnectionID: model.config.id) { config in
+                model.confirmLeaving(to: config.displayName) { switchConnection(config.id) }
+            }
             SidebarView(model: model)
                 .frame(width: sidebarWidth)
                 .background(Theme.sidebarBackground)

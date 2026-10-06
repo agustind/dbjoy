@@ -38,9 +38,21 @@ final class ConnectionStore {
         persist()
     }
 
+    var starredConnections: [ConnectionConfig] {
+        connections.filter(\.isStarred)
+            .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+    }
+
+    func toggleStar(_ id: UUID) {
+        guard let index = connections.firstIndex(where: { $0.id == id }) else { return }
+        connections[index].isStarred.toggle()
+        persist()
+    }
+
     func duplicate(_ config: ConnectionConfig) {
         var copy = config
         copy.id = UUID()
+        copy.isStarred = false
         copy.name = config.displayName + " copy"
         save(copy, password: config.savePassword ? Keychain.password(for: config.id) : nil)
     }

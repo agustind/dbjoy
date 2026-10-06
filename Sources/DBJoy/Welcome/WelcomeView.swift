@@ -34,13 +34,11 @@ struct WelcomeView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(Theme.accent)
-                    Image(systemName: "cylinder.split.1x2.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Theme.onAccent)
-                }
-                .frame(width: 36, height: 36)
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 44, height: 44)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Connections").font(.system(size: 21, weight: .bold)).foregroundStyle(Theme.textPrimary)
                     Text("\(store.connections.count) saved").font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
@@ -71,7 +69,7 @@ struct WelcomeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 2) {
                         ForEach(groups, id: \.name) { group in
                             SectionLabel(title: group.name.isEmpty ? "Connections" : group.name,
                                          trailing: "\(group.connections.count)")
@@ -79,18 +77,20 @@ struct WelcomeView: View {
                                 .padding(.top, 14)
                                 .padding(.bottom, 6)
                             ForEach(group.connections) { config in
-                                ConnectionRow(config: config, isSelected: selection == config.id)
+                                ConnectionRow(config: config, isSelected: selection == config.id) {
+                                    store.toggleStar(config.id)
+                                }
                                     .onTapGesture(count: 2) { connect(config) }
                                     .onTapGesture { selection = config.id }
                                     .contextMenu {
                                         Button("Connect") { connect(config) }
+                                        Button(config.isStarred ? "Unstar" : "Star") { store.toggleStar(config.id) }
                                         Button("Edit…") { draft = ConnectionDraft(config: config, isNew: false) }
                                         Button("Duplicate") { store.duplicate(config) }
                                         Divider()
                                         Button("Delete…", role: .destructive) { pendingDelete = config }
                                     }
-                                    .accessibilityElement(children: .combine)
-                                    .accessibilityAddTraits(.isButton)
+                                    .accessibilityElement(children: .contain)
                                     .accessibilityIdentifier("connection-\(config.displayName)")
                                     .accessibilityAction { selection = config.id }
                             }
@@ -155,6 +155,7 @@ struct WelcomeView: View {
 private struct ConnectionRow: View {
     var config: ConnectionConfig
     var isSelected: Bool
+    var toggleStar: () -> Void
     @State private var isHovering = false
 
     var body: some View {
@@ -182,6 +183,18 @@ private struct ConnectionRow: View {
             }
             Spacer()
             EnvironmentBadge(environment: config.environment)
+            Button(action: toggleStar) {
+                Image(systemName: config.isStarred ? "star.fill" : "star")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(config.isStarred ? Color.yellow : Theme.textTertiary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .opacity(config.isStarred || isHovering || isSelected ? 1 : 0.35)
+            .help(config.isStarred ? "Remove from the starred bar" : "Star: show in the bar on the left of connection windows")
+            .accessibilityLabel(config.isStarred ? "Unstar \(config.displayName)" : "Star \(config.displayName)")
+            .accessibilityIdentifier("star-\(config.displayName)")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

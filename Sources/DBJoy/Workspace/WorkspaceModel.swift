@@ -180,6 +180,18 @@ final class WorkspaceModel {
         }
     }
 
+    /// Runs `action` (which replaces this window's connection) after confirming that unsaved
+    /// changes and open transactions may be discarded.
+    func confirmLeaving(to name: String, action: @escaping @MainActor () -> Void) {
+        guard tabs.contains(where: \.hasUnsavedChanges) else {
+            action()
+            return
+        }
+        confirm("Switch to \(name)?",
+                message: "Open tabs have unsaved changes or open transactions that will be discarded.",
+                actionTitle: "Switch", destructive: true) { action() }
+    }
+
     func switchSchema(_ name: String) {
         guard name != currentSchema else { return }
         currentSchema = name

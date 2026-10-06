@@ -59,6 +59,8 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
     public var savePassword: Bool
     /// Server-enforced read-only sessions.
     public var readOnly: Bool
+    /// Shown in the starred connections bar.
+    public var isStarred: Bool
     /// Extra driver-specific connection options (e.g. libpq keywords).
     public var options: [String: String]
 
@@ -75,6 +77,7 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
         sslMode: SSLMode = .prefer,
         savePassword: Bool = true,
         readOnly: Bool = false,
+        isStarred: Bool = false,
         options: [String: String] = [:]
     ) {
         self.id = id
@@ -89,6 +92,7 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
         self.sslMode = sslMode
         self.savePassword = savePassword
         self.readOnly = readOnly
+        self.isStarred = isStarred
         self.options = options
     }
 
@@ -108,6 +112,7 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
             sslMode: try c.decodeIfPresent(SSLMode.self, forKey: .sslMode) ?? .prefer,
             savePassword: try c.decodeIfPresent(Bool.self, forKey: .savePassword) ?? true,
             readOnly: try c.decodeIfPresent(Bool.self, forKey: .readOnly) ?? false,
+            isStarred: try c.decodeIfPresent(Bool.self, forKey: .isStarred) ?? false,
             options: try c.decodeIfPresent([String: String].self, forKey: .options) ?? [:]
         )
     }

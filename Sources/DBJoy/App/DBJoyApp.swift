@@ -16,7 +16,10 @@ struct DBJoyApp: App {
 
         WindowGroup("Workspace", id: "workspace", for: UUID.self) { $connectionID in
             if let id = connectionID, let config = store.connection(id: id) {
-                WorkspaceRoot(config: config)
+                // Changing the scene value switches this window to another connection;
+                // the id resets the workspace so the old session disconnects.
+                WorkspaceRoot(config: config) { connectionID = $0 }
+                    .id(id)
             } else {
                 ContentUnavailableView("Connection not found", systemImage: "questionmark.circle",
                                        description: Text("It may have been deleted."))
