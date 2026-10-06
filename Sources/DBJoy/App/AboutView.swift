@@ -10,14 +10,11 @@ struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            ZStack {
-                Circle().fill(Theme.accent)
-                Image(systemName: "cylinder.split.1x2.fill")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(Theme.onAccent)
-            }
-            .frame(width: 72, height: 72)
-            .padding(.top, 8)
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 112, height: 112)
+                .accessibilityHidden(true)
 
             VStack(spacing: 4) {
                 Text("DBJoy").font(.system(size: 24, weight: .bold)).foregroundStyle(Theme.textPrimary)
