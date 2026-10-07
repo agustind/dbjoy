@@ -1,7 +1,20 @@
-# DBJoy
+<div align="center">
+<pre>
+██████╗ ██████╗      ██╗ ██████╗ ██╗   ██╗
+██╔══██╗██╔══██╗     ██║██╔═══██╗╚██╗ ██╔╝
+██║  ██║██████╔╝     ██║██║   ██║ ╚████╔╝ 
+██║  ██║██╔══██╗██   ██║██║   ██║  ╚██╔╝  
+██████╔╝██████╔╝╚█████╔╝╚██████╔╝   ██║   
+╚═════╝ ╚═════╝  ╚════╝  ╚═════╝    ╚═╝   
+</pre>
+</div>
 
 A fast, native macOS client for PostgreSQL. Browse schemas, edit data safely, write SQL and export, all in a
 keyboard-friendly SwiftUI app. More database engines can be added as drivers.
+
+<p align="center">
+  <img src="screenshot.png" alt="DBJoy browsing a customers table, with the row details panel open" width="720">
+</p>
 
 ## Install
 
