@@ -18,8 +18,11 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Paste a connection string (`postgres://user:pass@host:5432/db?sslmode=require` or `host=… dbname=…`) to fill in a
   new connection; DBJoy also offers one it finds on the clipboard
 - Passwords stored in the macOS Keychain; SSL modes supported
+- SSH tunnels: reach databases whose port is blocked from your network through an SSH server (agent, private key or
+  password auth). Set it up in the connection form, or straight from the "Couldn't connect" screen
 - Read-only connections, enforced by the server
 - Each connection opens in its own window, and several can be open at once
+- Give each connection an icon from a built-in pack (or keep its initials), shown on its environment's pastel color
 - Star connections to pin them to a collapsible bar on the left of every window; one click switches that window to
   the connection (or opens a new window, per Settings; ⌘-click does the opposite)
 
@@ -125,6 +128,10 @@ arrays, ranges, JSON, network types, a generated column…) for testing editors.
 ```sh
 swift test                       # unit tests (lexer, splitter, completion, SQL generation)
 DBJOY_TEST_PG=1 swift test       # + integration and export tests against the sample database
+
+scripts/ssh-test-server.sh       # throwaway sshd on 127.0.0.1:52222 next to the sample database
+DBJOY_TEST_SSH=1 DBJOY_TEST_SSH_KEY=/tmp/dbjoy_test_key swift test --filter SSHTunnelTests
+docker rm -f dbjoy-ssh
 ```
 
 ### Architecture

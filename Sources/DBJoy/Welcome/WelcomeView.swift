@@ -101,6 +101,18 @@ struct WelcomeView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay {
+                    if filtered.isEmpty {
+                        VStack(spacing: 6) {
+                            Text("No connections match “\(search)”")
+                                .font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                            Button("Clear search") { search = "" }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Theme.accentText)
+                        }
+                    }
+                }
             }
 
             Rectangle().fill(Theme.separator).frame(height: 1)
@@ -162,13 +174,7 @@ private struct ConnectionRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8).fill(config.environment.fill)
-                Image(systemName: "cylinder.split.1x2")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(config.environment.ink)
-            }
-            .frame(width: 34, height: 34)
+            ConnectionAvatar(config: config, size: 34, shape: .roundedSquare)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(config.displayName)

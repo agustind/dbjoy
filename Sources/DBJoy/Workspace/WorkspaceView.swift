@@ -13,27 +13,27 @@ struct WorkspaceRoot: View {
     }
 
     var body: some View {
-        Group {
-            switch model.phase {
-            case .connecting:
-                ProgressView("Connecting to \(model.config.displayName)…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .needsPassword(let message):
-                PasswordPrompt(model: model, message: message)
-            case .failed(let message):
-                ContentUnavailableView {
-                    Label("Couldn't connect", systemImage: "bolt.horizontal.circle")
-                } description: {
-                    Text(message).textSelection(.enabled)
-                } actions: {
-                    Button("Retry") { Task { await model.retry() } }
-                        .buttonStyle(.borderedProminent)
-                }
-            case .connected:
-                WorkspaceView(model: model, switchConnection: switchConnection)
+        HStack(spacing: 0) {
+            // Always available, so a failed or slow connection never traps the window.
+            StarredRail(currentConnectionID: model.config.id) { config in
+                model.confirmLeaving(to: config.displayName) { switchConnection(config.id) }
             }
+            Group {
+                switch model.phase {
+                case .connecting:
+                    ConnectionStatusView(model: model, message: nil)
+                case .needsPassword(let message):
+                    PasswordPrompt(model: model, message: message)
+                case .failed(let message):
+                    ConnectionStatusView(model: model, message: message)
+                case .connected:
+                    WorkspaceView(model: model)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Theme.contentBackground)
+        .tint(Theme.accent)
         .task { await model.start() }
         .onDisappear { Task { await model.disconnect() } }
         .navigationTitle(model.windowTitle)
@@ -69,6 +69,87 @@ struct WorkspaceRoot: View {
     }
 }
 
+/// Shown while connecting (`message == nil`) or after a connection failed.
+private struct ConnectionStatusView: View {
+    var model: WorkspaceModel
+    var message: String?
+    @Environment(\.openWindow) private var openWindow
+    @State private var isConfiguringSSH = false
+
+    /// Refused or timed-out connections usually mean the port isn't reachable from this network.
+    private var looksBlocked: Bool {
+        guard let message, !message.hasPrefix("SSH ") else { return false }
+        return ["Connection refused", "timeout expired", "timed out", "Operation timed out", "No route to host",
+                "Network is unreachable"].contains { message.localizedCaseInsensitiveContains($0) }
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            if message == nil {
+                ProgressView().controlSize(.large)
+                Text("Connecting to \(model.config.displayName)…")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text("\(model.config.user)@\(model.config.host):\(model.config.port)"
+                     + (model.config.ssh.isEnabled ? " via SSH \(model.config.ssh.host)" : ""))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+            } else {
+                ZStack {
+                    Circle().fill(model.config.environment.fill)
+                    Image(systemName: "bolt.horizontal.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(model.config.environment.ink)
+                }
+                .frame(width: 56, height: 56)
+                Text("Couldn't connect to \(model.config.displayName)")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text(message ?? "")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: 520)
+                    .padding(14)
+                    .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.border, lineWidth: 1))
+                if looksBlocked {
+                    Label {
+                        Text("The database port may be blocked from your network. If you can reach an SSH server (a bastion or jump host) that can reach the database, connect through an SSH tunnel.")
+                    } icon: {
+                        Image(systemName: "lightbulb")
+                    }
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(maxWidth: 520, alignment: .leading)
+                }
+                HStack(spacing: 10) {
+                    Button { Task { await model.retry() } } label: { Label("Retry", systemImage: "arrow.clockwise") }
+                        .buttonStyle(.primary)
+                        .keyboardShortcut(.defaultAction)
+                    Button { isConfiguringSSH = true } label: {
+                        Label(model.config.ssh.isEnabled ? "Edit SSH tunnel…" : "Connect through SSH tunnel…",
+                              systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                    }
+                    .buttonStyle(.outline)
+                    Button { openWindow(id: "welcome") } label: { Label("Show connections", systemImage: "square.stack.3d.up") }
+                        .buttonStyle(.outline)
+                }
+                if !ConnectionStore.shared.starredConnections.isEmpty {
+                    Text("Or pick another starred connection on the left.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+            }
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $isConfiguringSSH) { SSHTunnelSheet(model: model) }
+    }
+}
+
 private struct PasswordPrompt: View {
     var model: WorkspaceModel
     var message: String?
@@ -96,14 +177,10 @@ private struct PasswordPrompt: View {
 
 struct WorkspaceView: View {
     @Bindable var model: WorkspaceModel
-    var switchConnection: (UUID) -> Void
     @AppStorage("sidebarWidth") private var sidebarWidth: Double = 268
 
     var body: some View {
         HStack(spacing: 0) {
-            StarredRail(currentConnectionID: model.config.id) { config in
-                model.confirmLeaving(to: config.displayName) { switchConnection(config.id) }
-            }
             SidebarView(model: model)
                 .frame(width: sidebarWidth)
                 .background(Theme.sidebarBackground)

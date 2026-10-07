@@ -52,14 +52,9 @@ struct SidebarView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            ZStack {
-                // Colored by environment so it's clear what kind of server this window is on.
-                Circle().fill(model.config.environment.fill)
-                Image(systemName: "cylinder.split.1x2.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(model.config.environment.ink)
-            }
-            .frame(width: 30, height: 30)
+            // Colored by environment so it's clear what kind of server this window is on.
+            // Read the saved connection so icon/name edits show without reopening the window.
+            ConnectionAvatar(config: ConnectionStore.shared.connection(id: model.config.id) ?? model.config, size: 30)
             .help("\(model.config.environment.displayName) connection")
             .accessibilityLabel("\(model.config.environment.displayName) connection")
 

@@ -35,12 +35,21 @@ final class ConnectionStore {
     func delete(_ id: UUID) {
         connections.removeAll { $0.id == id }
         Keychain.setPassword(nil, for: id)
+        Keychain.setPassword(nil, for: id, ssh: true)
         persist()
     }
 
     var starredConnections: [ConnectionConfig] {
         connections.filter(\.isStarred)
             .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+    }
+
+    /// Saves SSH tunnel settings for a connection; `secret` (password or key passphrase) goes to the Keychain.
+    func updateSSH(_ ssh: SSHTunnelConfig, secret: String?, for id: UUID) {
+        guard let index = connections.firstIndex(where: { $0.id == id }) else { return }
+        connections[index].ssh = ssh
+        if let secret { Keychain.setPassword(secret.isEmpty ? nil : secret, for: id, ssh: true) }
+        persist()
     }
 
     func toggleStar(_ id: UUID) {

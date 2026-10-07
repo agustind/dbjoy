@@ -177,7 +177,7 @@ final class ExportModel: Identifiable {
             throw DatabaseError("pg_dump was not found. Install it with: brew install libpq")
         }
         let config = workspace.config
-        let arguments = ["--host", config.host.isEmpty ? "localhost" : config.host, "--port", String(config.port),
+        let arguments = ["--host", config.host.isEmpty ? "localhost" : config.host, "--port", String(workspace.effectivePort),
                          "--username", config.user, "--dbname", workspace.currentDatabase,
                          "--file", file.path, "--no-password", "--format=plain"]
         currentTable = "pg_dump"

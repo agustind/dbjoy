@@ -14,6 +14,8 @@ struct ConnectionFormView: View {
     @State private var clipboardCandidate: (text: String, summary: String)?
     /// Name generated from a connection string; replaced on re-import unless the user edited it.
     @State private var autoName: String?
+    @State private var sshSecret = ""
+    @State private var isChoosingIcon = false
     private let isNew: Bool
     private let onConnect: (ConnectionConfig) -> Void
 
@@ -29,6 +31,7 @@ struct ConnectionFormView: View {
         _config = State(initialValue: draft.config)
         _password = State(initialValue: draft.isNew ? "" : (Keychain.password(for: draft.config.id) ?? ""))
         _portText = State(initialValue: String(draft.config.port))
+        _sshSecret = State(initialValue: draft.isNew ? "" : (Keychain.password(for: draft.config.id, ssh: true) ?? ""))
         isNew = draft.isNew
         self.onConnect = onConnect
     }
@@ -83,6 +86,19 @@ struct ConnectionFormView: View {
                 }
                 Section {
                     TextField("Name", text: $config.name, prompt: Text("My database"))
+                    LabeledContent("Icon") {
+                        HStack(spacing: 10) {
+                            ConnectionAvatar(config: config, size: 26)
+                            Button(config.icon == nil ? "Choose…" : "Change…") { isChoosingIcon = true }
+                                .popover(isPresented: $isChoosingIcon, arrowEdge: .trailing) {
+                                    ConnectionIconPicker(config: $config)
+                                }
+                            if config.icon != nil {
+                                Button("Use initials") { config.icon = nil }
+                                    .buttonStyle(.link)
+                            }
+                        }
+                    }
                     Picker("Environment", selection: $config.environment) {
                         ForEach(ConnectionEnvironment.allCases) { env in
                             Label { Text(env.displayName) } icon: { env.swatch }
@@ -106,6 +122,20 @@ struct ConnectionFormView: View {
                     TextField("Database", text: $config.database, prompt: Text("postgres"))
                     Picker("SSL mode", selection: $config.sslMode) {
                         ForEach(SSLMode.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                }
+                Section {
+                    Toggle("Connect through an SSH tunnel", isOn: $config.ssh.isEnabled)
+                    if config.ssh.isEnabled {
+                        SSHTunnelFields(ssh: $config.ssh, secret: $sshSecret)
+                    }
+                } header: {
+                    Text("SSH tunnel")
+                } footer: {
+                    if config.ssh.isEnabled {
+                        Text("The database host and port above are reached from the SSH server.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Section("Safety") {
@@ -145,7 +175,7 @@ struct ConnectionFormView: View {
             }
             .padding(16)
         }
-        .frame(width: 540, height: 700)
+        .frame(width: 540, height: 760)
         .onAppear(perform: detectClipboard)
         .navigationTitle(isNew ? "New Connection" : "Edit Connection")
     }
@@ -197,18 +227,23 @@ struct ConnectionFormView: View {
 
     private func save() {
         store.save(config, password: password)
+        Keychain.setPassword(config.ssh.isEnabled && config.ssh.authMethod != .agent && !sshSecret.isEmpty ? sshSecret : nil,
+                             for: config.id, ssh: true)
         dismiss()
     }
 
     private func test() async {
         testState = .testing
         do {
-            let connection = try await Drivers.driver(for: config.kind).connect(config, password: password, database: nil)
+            let tunnel = try await ConnectionOpener.openTunnel(for: config, secret: sshSecret)
+            defer { tunnel?.close() }
+            let connection = try await Drivers.driver(for: config.kind)
+                .connect(ConnectionOpener.endpoint(for: config, tunnel: tunnel), password: password, database: nil)
             let version = connection.serverVersion
             await connection.close()
             testState = .success("Connected — server \(version)")
         } catch {
-            testState = .failure(error.localizedDescription)
+            testState = .failure((error as? DatabaseError)?.fullDescription ?? error.localizedDescription)
         }
     }
 }

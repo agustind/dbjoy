@@ -45,6 +45,58 @@ public enum SSLMode: String, Codable, CaseIterable, Sendable, Identifiable {
     public var id: String { rawValue }
 }
 
+/// Optional SSH tunnel: the database is reached through a local port forwarded by `ssh -L`.
+public struct SSHTunnelConfig: Codable, Hashable, Sendable {
+    public enum AuthMethod: String, Codable, CaseIterable, Sendable, Identifiable {
+        case agent, privateKey, password
+
+        public var id: String { rawValue }
+
+        public var displayName: String {
+            switch self {
+            case .agent: "SSH agent"
+            case .privateKey: "Private key"
+            case .password: "Password"
+            }
+        }
+    }
+
+    public var isEnabled: Bool
+    public var host: String
+    public var port: Int
+    public var user: String
+    public var authMethod: AuthMethod
+    /// Path to the private key (`~` allowed) when `authMethod == .privateKey`.
+    public var privateKeyPath: String
+
+    public init(isEnabled: Bool = false, host: String = "", port: Int = 22, user: String = "",
+                authMethod: AuthMethod = .privateKey, privateKeyPath: String = "~/.ssh/id_ed25519") {
+        self.isEnabled = isEnabled
+        self.host = host
+        self.port = port
+        self.user = user
+        self.authMethod = authMethod
+        self.privateKeyPath = privateKeyPath
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            isEnabled: try c.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? false,
+            host: try c.decodeIfPresent(String.self, forKey: .host) ?? "",
+            port: try c.decodeIfPresent(Int.self, forKey: .port) ?? 22,
+            user: try c.decodeIfPresent(String.self, forKey: .user) ?? "",
+            authMethod: try c.decodeIfPresent(AuthMethod.self, forKey: .authMethod) ?? .privateKey,
+            privateKeyPath: try c.decodeIfPresent(String.self, forKey: .privateKeyPath) ?? "~/.ssh/id_ed25519")
+    }
+
+    /// Whether enough is filled in to start a tunnel.
+    public var isComplete: Bool {
+        !host.trimmingCharacters(in: .whitespaces).isEmpty && !user.trimmingCharacters(in: .whitespaces).isEmpty
+            && (authMethod != .privateKey || !privateKeyPath.trimmingCharacters(in: .whitespaces).isEmpty)
+    }
+}
+
 public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
     public var id: UUID
     public var name: String
@@ -61,6 +113,9 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
     public var readOnly: Bool
     /// Shown in the starred connections bar.
     public var isStarred: Bool
+    /// SF Symbol shown for the connection; `nil` shows the name's initials.
+    public var icon: String?
+    public var ssh: SSHTunnelConfig
     /// Extra driver-specific connection options (e.g. libpq keywords).
     public var options: [String: String]
 
@@ -78,6 +133,8 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
         savePassword: Bool = true,
         readOnly: Bool = false,
         isStarred: Bool = false,
+        icon: String? = nil,
+        ssh: SSHTunnelConfig = SSHTunnelConfig(),
         options: [String: String] = [:]
     ) {
         self.id = id
@@ -93,6 +150,8 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
         self.savePassword = savePassword
         self.readOnly = readOnly
         self.isStarred = isStarred
+        self.icon = icon
+        self.ssh = ssh
         self.options = options
     }
 
@@ -113,6 +172,8 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
             savePassword: try c.decodeIfPresent(Bool.self, forKey: .savePassword) ?? true,
             readOnly: try c.decodeIfPresent(Bool.self, forKey: .readOnly) ?? false,
             isStarred: try c.decodeIfPresent(Bool.self, forKey: .isStarred) ?? false,
+            icon: try c.decodeIfPresent(String.self, forKey: .icon),
+            ssh: try c.decodeIfPresent(SSHTunnelConfig.self, forKey: .ssh) ?? SSHTunnelConfig(),
             options: try c.decodeIfPresent([String: String].self, forKey: .options) ?? [:]
         )
     }

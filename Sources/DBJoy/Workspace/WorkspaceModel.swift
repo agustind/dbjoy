@@ -72,8 +72,10 @@ final class WorkspaceModel {
         case failed(String)
     }
 
-    let config: ConnectionConfig
+    private(set) var config: ConnectionConfig
     private var password: String?
+    /// Local port forward when the connection goes through SSH.
+    @ObservationIgnored private var tunnel: SSHTunnel?
     var phase: Phase = .connecting
     private(set) var connection: (any DatabaseConnection)?
 
@@ -130,7 +132,8 @@ final class WorkspaceModel {
     private func connect(database: String?) async {
         phase = .connecting
         do {
-            let connection = try await Drivers.driver(for: config.kind).connect(config, password: password, database: database)
+            let connection = try await Drivers.driver(for: config.kind)
+                .connect(try await endpoint(), password: password, database: database)
             self.connection = connection
             currentDatabase = connection.databaseName
             databases = (try? await connection.listDatabases()) ?? [currentDatabase]
@@ -140,13 +143,39 @@ final class WorkspaceModel {
             phase = .connected
             await reloadObjects()
         } catch {
-            let message = error.localizedDescription
-            if message.localizedCaseInsensitiveContains("password") {
+            let message = (error as? DatabaseError)?.fullDescription ?? error.localizedDescription
+            // SSH errors mention passwords too ("Permission denied (publickey,password)"), but
+            // only a database authentication failure should prompt for the database password.
+            let isSSHError = message.hasPrefix("SSH ")
+            if !isSSHError, message.localizedCaseInsensitiveContains("password") {
                 phase = .needsPassword(message)
             } else {
                 phase = .failed(message)
             }
         }
+    }
+
+    /// Where the driver should connect: directly, or through a (re)started SSH tunnel.
+    private func endpoint() async throws -> ConnectionConfig {
+        if config.ssh.isEnabled, tunnel?.isRunning != true {
+            tunnel?.close()
+            tunnel = try await ConnectionOpener.openTunnel(for: config, secret: Keychain.password(for: config.id, ssh: true))
+        }
+        return ConnectionOpener.endpoint(for: config, tunnel: config.ssh.isEnabled ? tunnel : nil)
+    }
+
+    /// Port that tools like pg_dump should use (the tunnel's local port when tunneling).
+    var effectivePort: Int { config.ssh.isEnabled ? (tunnel?.localPort ?? config.port) : config.port }
+
+    /// Saves SSH tunnel settings for this connection and reconnects through them.
+    func applySSH(_ ssh: SSHTunnelConfig, secret: String?) async {
+        ConnectionStore.shared.updateSSH(ssh, secret: secret, for: config.id)
+        config.ssh = ssh
+        tunnel?.close()
+        tunnel = nil
+        await connection?.close()
+        connection = nil
+        await connect(database: currentDatabase.isEmpty ? nil : currentDatabase)
     }
 
     func retry() async {
@@ -159,6 +188,8 @@ final class WorkspaceModel {
         }
         await connection?.close()
         connection = nil
+        tunnel?.close()
+        tunnel = nil
     }
 
     func switchDatabase(_ name: String) {
@@ -232,12 +263,13 @@ final class WorkspaceModel {
 
     /// Opens a dedicated connection to the current database (used by query tabs).
     func openSession() async throws -> any DatabaseConnection {
-        try await Drivers.driver(for: config.kind).connect(config, password: password, database: currentDatabase)
+        try await Drivers.driver(for: config.kind).connect(try await endpoint(), password: password, database: currentDatabase)
     }
 
     /// libpq environment for command-line tools such as pg_dump.
     func dumpEnvironment() -> [String: String] {
         var environment = ["PGSSLMODE": config.sslMode.rawValue, "PGCONNECT_TIMEOUT": "10", "PGAPPNAME": "DBJoy"]
+        if config.ssh.isEnabled, tunnel != nil { environment["PGHOSTADDR"] = "127.0.0.1" }
         if let password, !password.isEmpty { environment["PGPASSWORD"] = password }
         return environment
     }

@@ -118,13 +118,7 @@ private struct StarredItem: View {
     var body: some View {
         Button(action: open) {
             HStack(spacing: 10) {
-                ZStack {
-                    Circle().fill(config.environment.fill)
-                    Text(Self.initials(config.displayName))
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(config.environment.ink)
-                }
-                .frame(width: 32, height: 32)
+                ConnectionAvatar(config: config, size: 32)
                 .overlay(Circle().strokeBorder(isCurrent ? Theme.accent : .clear, lineWidth: 2).padding(-3))
                 if isExpanded {
                     VStack(alignment: .leading, spacing: 1) {
@@ -155,17 +149,5 @@ private struct StarredItem: View {
               : "\(config.displayName) · \(config.environment.displayName)\n\(config.user)@\(config.host):\(config.port)\n\(hint)")
         .accessibilityLabel("\(config.displayName), \(config.environment.displayName)\(isCurrent ? ", current" : "")")
         .accessibilityIdentifier("starred-\(config.displayName)")
-    }
-
-    /// Two-letter monogram: initials of the first two meaningful words, or the first two letters.
-    static func initials(_ name: String) -> String {
-        let filler: Set<String> = ["on", "at", "the", "of", "and", "de", "la", "el"]
-        let words = name.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-            .map(String.init)
-            .filter { !filler.contains($0.lowercased()) }
-        if words.count >= 2, let a = words[0].first, let b = words[1].first {
-            return (String(a) + String(b)).uppercased()
-        }
-        return String((words.first ?? name).prefix(2)).uppercased()
     }
 }
