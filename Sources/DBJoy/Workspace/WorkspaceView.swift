@@ -178,6 +178,7 @@ private struct PasswordPrompt: View {
 struct WorkspaceView: View {
     @Bindable var model: WorkspaceModel
     @AppStorage("sidebarWidth") private var sidebarWidth: Double = 268
+    @AppStorage("assistantWidth") private var assistantWidth: Double = 380
 
     var body: some View {
         HStack(spacing: 0) {
@@ -196,6 +197,11 @@ struct WorkspaceView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .background(Theme.contentBackground)
+            if model.isAssistantVisible, let assistant = model.assistant {
+                ResizeHandle(width: $assistantWidth, range: 300...640, growsTowardLeading: true)
+                AssistantPanel(model: assistant, workspace: model)
+                    .frame(width: assistantWidth)
+            }
         }
         .tint(Theme.accent)
     }
@@ -230,12 +236,15 @@ private struct EmptyWorkspace: View {
                     .buttonStyle(.outline)
                 Button { model.openDiagram() } label: { Label("ER diagram", systemImage: "point.3.connected.trianglepath.dotted") }
                     .buttonStyle(.outline)
+                Button { model.toggleAssistant() } label: { Label("Ask AI", systemImage: "sparkles") }
+                    .buttonStyle(.outline(active: model.isAssistantVisible))
             }
             HStack(spacing: 16) {
                 shortcut("⌘T", "New query")
                 shortcut("⌘P", "Open anything")
                 shortcut("⌘F", "Search rows")
                 shortcut("⇧⌘E", "Diagram")
+                shortcut("⌘J", "Assistant")
             }
             .padding(.top, 6)
         }
@@ -250,10 +259,12 @@ private struct EmptyWorkspace: View {
     }
 }
 
-/// Draggable vertical divider that resizes the sidebar.
+/// Draggable vertical divider that resizes a side panel.
 struct ResizeHandle: View {
     @Binding var width: Double
     var range: ClosedRange<Double>
+    /// For panels on the trailing edge, which grow as the divider moves left.
+    var growsTowardLeading = false
     @State private var startWidth: Double?
 
     var body: some View {
@@ -271,7 +282,8 @@ struct ResizeHandle: View {
                         .onChanged { value in
                             let start = startWidth ?? width
                             startWidth = start
-                            width = min(max(start + value.translation.width, range.lowerBound), range.upperBound)
+                            let delta = growsTowardLeading ? -value.translation.width : value.translation.width
+                            width = min(max(start + delta, range.lowerBound), range.upperBound)
                         }
                         .onEnded { _ in startWidth = nil })
             }
@@ -307,6 +319,9 @@ struct TabStrip: View {
             Button { model.newQuery() } label: { Image(systemName: "plus") }
                 .buttonStyle(.ghost)
                 .help("New query tab (⌘T)")
+            Button { model.toggleAssistant() } label: { Image(systemName: "sparkles") }
+                .buttonStyle(.ghost(active: model.isAssistantVisible))
+                .help("AI assistant (⌘J)")
                 .padding(.trailing, 10)
         }
         .frame(height: 42)

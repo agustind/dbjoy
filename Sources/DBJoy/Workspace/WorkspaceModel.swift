@@ -97,6 +97,9 @@ final class WorkspaceModel {
     var createTable: CreateTableModel?
     var export: ExportModel?
     var isQuickOpenPresented = false
+    /// The AI assistant panel, created the first time it's shown.
+    private(set) var assistant: AssistantModel?
+    var isAssistantVisible = false
 
     init(config: ConnectionConfig) {
         self.config = config
@@ -173,6 +176,7 @@ final class WorkspaceModel {
         config.ssh = ssh
         tunnel?.close()
         tunnel = nil
+        await assistant?.close()
         await connection?.close()
         connection = nil
         await connect(database: currentDatabase.isEmpty ? nil : currentDatabase)
@@ -186,6 +190,7 @@ final class WorkspaceModel {
         for tab in tabs {
             if case .query(let query) = tab { await query.closeConnection() }
         }
+        await assistant?.close()
         await connection?.close()
         connection = nil
         tunnel?.close()
@@ -200,6 +205,7 @@ final class WorkspaceModel {
             }
             tabs = []
             selectedTabID = nil
+            await assistant?.close()
             await connection?.close()
             connection = nil
             objects = []
@@ -324,6 +330,30 @@ final class WorkspaceModel {
                                   sql: savedQuery?.sql ?? sql, savedQueryID: savedQuery?.id)
         tabs.append(.query(model))
         selectedTabID = model.id
+    }
+
+    // MARK: Assistant
+
+    func toggleAssistant() {
+        if assistant == nil { assistant = AssistantModel(workspace: self) }
+        isAssistantVisible.toggle()
+    }
+
+    /// Opens SQL in a new query tab and runs it, e.g. to see an assistant result in full.
+    func runInNewQuery(_ sql: String, title: String? = nil) {
+        newQuery(sql: sql, title: title)
+        if case .query(let tab) = selectedTab { tab.run(.all) }
+    }
+
+    /// Keeps the sidebar and open tables current after the assistant changed something.
+    func didChangeData(_ sql: String) async {
+        let ddl: Set<String> = ["CREATE", "ALTER", "DROP", "COMMENT"]
+        if SQLSplitter.split(sql).contains(where: { ddl.contains(SQLLexer.firstKeyword(in: $0.text) ?? "") }) {
+            await reloadObjects()
+        }
+        for tab in tabs {
+            if case .table(let model) = tab, !model.hasChanges { await model.reloadData() }
+        }
     }
 
     // MARK: SQL files

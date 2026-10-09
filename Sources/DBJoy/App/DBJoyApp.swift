@@ -96,6 +96,9 @@ struct AppCommands: Commands {
             Button("Open Anything…") { workspace?.isQuickOpenPresented = true }
                 .keyboardShortcut("p")
                 .disabled(workspace == nil)
+            Button("AI Assistant") { workspace?.toggleAssistant() }
+                .keyboardShortcut("j")
+                .disabled(workspace == nil)
             Button("Open SQL File…") { workspace?.openSQLFiles() }
                 .keyboardShortcut("o")
                 .disabled(workspace == nil)

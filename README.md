@@ -74,6 +74,16 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Open `.sql` files (⌘O, or drag them onto a query tab) and optionally run them right away; Run SQL File… (⇧⌘O)
   opens and runs in one step. psql-only commands such as `\connect` or `\copy` are flagged before anything runs
 
+### AI assistant
+- Ask about your data in plain language (⌘J): the assistant looks up table structures, runs queries and answers
+  with the results, shown inline in the chat
+- Ask it to write SQL and it opens the query in a new tab for you to review, run or save
+- Bring your own Anthropic or OpenAI API key (Settings → AI Assistant); keys are stored in the macOS Keychain, and the
+  model is configurable
+- Read-only by default: its queries run in read-only transactions. Turn on **Allow the assistant to change data** to
+  let it run INSERT/UPDATE/DELETE and schema changes, each in one transaction, with an approval step before each change
+  (always on production connections; never on read-only connections)
+
 ### Export
 - CSV or JSON (one file per table), or SQL `INSERT`s (one file, ordered by foreign keys, sequences reset)
 - Full restorable backup via `pg_dump` (bundled with the app)
@@ -98,6 +108,7 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 | ER diagram | ⇧⌘E |
 | Export tables | ⌥⌘E |
 | Open SQL file / run SQL file | ⌘O / ⇧⌘O |
+| AI assistant | ⌘J |
 | Next / previous tab | ⇧⌘] / ⇧⌘[ |
 | Completion | typing, Esc or ⌃Space |
 | Edit cell | double-click or Return; Tab moves to the next cell |

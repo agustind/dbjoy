@@ -32,6 +32,18 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
+    var body: some View {
+        TabView {
+            GeneralSettingsView()
+                .tabItem { Label("General", systemImage: "gearshape") }
+            AssistantSettingsView()
+                .tabItem { Label("AI Assistant", systemImage: "sparkles") }
+        }
+        .tint(Theme.accent)
+    }
+}
+
+private struct GeneralSettingsView: View {
     @AppStorage(AppearanceMode.storageKey) private var appearance: AppearanceMode = .system
     @AppStorage(StarredRail.newWindowKey) private var starredOpensNewWindow = false
 
