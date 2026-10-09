@@ -514,6 +514,11 @@ final class GridTableView: NSTableView {
         }
     }
 
+    /// Edit ▸ Delete.
+    @objc func delete(_ sender: Any?) {
+        coordinator?.deleteSelection()
+    }
+
     @objc func copy(_ sender: Any?) {
         coordinator?.copySelection()
     }

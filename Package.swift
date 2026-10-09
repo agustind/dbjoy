@@ -9,6 +9,7 @@ let package = Package(
     platforms: [.macOS(.v15)],
     products: [
         .executable(name: "DBJoy", targets: ["DBJoy"]),
+        .executable(name: "dbjoy-askpass", targets: ["AskPass"]),
     ],
     targets: [
         .systemLibrary(name: "CLibPQ", path: "Sources/CLibPQ"),
@@ -22,6 +23,7 @@ let package = Package(
             name: "DBJoy",
             dependencies: ["DBCore", "PostgresDriver"]
         ),
+        .executableTarget(name: "AskPass"),
         .testTarget(name: "DBCoreTests", dependencies: ["DBCore"]),
         .testTarget(name: "PostgresDriverTests", dependencies: ["PostgresDriver", "DBCore"]),
         .testTarget(name: "DBJoyTests", dependencies: ["DBJoy", "DBCore", "PostgresDriver"]),

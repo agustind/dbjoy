@@ -6,12 +6,13 @@ import Foundation
 final class SSHTunnel: @unchecked Sendable {
     let localPort: Int
     private let process: Process
-    private let askpassDirectory: URL?
+    /// The private key file, accessed through its security-scoped bookmark while ssh runs.
+    private let scopedKey: URL?
 
-    private init(localPort: Int, process: Process, askpassDirectory: URL?) {
+    private init(localPort: Int, process: Process, scopedKey: URL?) {
         self.localPort = localPort
         self.process = process
-        self.askpassDirectory = askpassDirectory
+        self.scopedKey = scopedKey
     }
 
     deinit { close() }
@@ -20,7 +21,7 @@ final class SSHTunnel: @unchecked Sendable {
 
     func close() {
         if process.isRunning { process.terminate() }
-        if let askpassDirectory { try? FileManager.default.removeItem(at: askpassDirectory) }
+        scopedKey?.stopAccessingSecurityScopedResource()
     }
 
     /// Host keys are trusted on first use and kept in DBJoy's own file (alongside the user's
@@ -45,12 +46,28 @@ final class SSHTunnel: @unchecked Sendable {
             "-o", "UserKnownHostsFile=\"\(knownHostsFile.path)\" ~/.ssh/known_hosts",
             "-o", "NumberOfPasswordPrompts=1",
         ]
+        var scopedKey: URL?
         switch ssh.authMethod {
         case .agent:
+            if Sandbox.isActive {
+                throw DatabaseError("The SSH agent isn't available to DBJoy from the Mac App Store.",
+                                    detail: "Choose your private key file in the SSH tunnel settings instead.")
+            }
             arguments += ["-o", "BatchMode=yes"]
         case .privateKey:
-            let path = (ssh.privateKeyPath as NSString).expandingTildeInPath
-            guard FileManager.default.fileExists(atPath: path) else {
+            var path = Sandbox.expandingTilde(ssh.privateKeyPath)
+            // ssh inherits the sandbox access granted to DBJoy, so open the bookmark before starting it.
+            if let bookmark = ssh.privateKeyBookmark, let url = resolveBookmark(bookmark),
+               url.startAccessingSecurityScopedResource() {
+                scopedKey = url
+                path = url.path
+            }
+            guard FileManager.default.isReadableFile(atPath: path) else {
+                scopedKey?.stopAccessingSecurityScopedResource()
+                if Sandbox.isActive && scopedKey == nil {
+                    throw DatabaseError("DBJoy needs permission to read the SSH private key.",
+                                        detail: "Click Choose… next to the private key in the SSH tunnel settings and select \(path).")
+                }
                 throw DatabaseError("SSH private key not found at \(path).")
             }
             arguments += ["-i", path, "-o", "IdentitiesOnly=yes"]
@@ -68,26 +85,27 @@ final class SSHTunnel: @unchecked Sendable {
         let errors = Pipe()
         process.standardError = errors
 
-        // Feed the password/passphrase non-interactively through an askpass helper.
+        // Feed the password/passphrase non-interactively through the bundled askpass helper.
         var environment = ProcessInfo.processInfo.environment
-        var askpassDirectory: URL?
         if let secret, !secret.isEmpty {
-            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("dbjoy-askpass-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
-                                                    attributes: [.posixPermissions: 0o700])
-            let script = directory.appendingPathComponent("askpass")
-            try "#!/bin/sh\nprintf '%s\\n' \"$DBJOY_SSH_SECRET\"\n".write(to: script, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
-            environment["SSH_ASKPASS"] = script.path
+            guard let askpass = BundledTools.url("dbjoy-askpass") else {
+                scopedKey?.stopAccessingSecurityScopedResource()
+                throw DatabaseError("DBJoy's SSH password helper is missing. Reinstall DBJoy.")
+            }
+            environment["SSH_ASKPASS"] = askpass.path
             environment["SSH_ASKPASS_REQUIRE"] = "force"
             environment["DISPLAY"] = environment["DISPLAY"] ?? "dbjoy"
             environment["DBJOY_SSH_SECRET"] = secret
-            askpassDirectory = directory
         }
         process.environment = environment
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            scopedKey?.stopAccessingSecurityScopedResource()
+            throw error
+        }
 
-        let tunnel = SSHTunnel(localPort: localPort, process: process, askpassDirectory: askpassDirectory)
+        let tunnel = SSHTunnel(localPort: localPort, process: process, scopedKey: scopedKey)
         let deadline = Date().addingTimeInterval(20)
         while Date() < deadline {
             if !process.isRunning {
@@ -102,6 +120,11 @@ final class SSHTunnel: @unchecked Sendable {
         }
         tunnel.close()
         throw DatabaseError("SSH tunnel to \(ssh.host) timed out")
+    }
+
+    private static func resolveBookmark(_ data: Data) -> URL? {
+        var stale = false
+        return try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale)
     }
 
     /// Asks the kernel for an unused loopback port.

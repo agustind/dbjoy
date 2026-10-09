@@ -68,15 +68,20 @@ public struct SSHTunnelConfig: Codable, Hashable, Sendable {
     public var authMethod: AuthMethod
     /// Path to the private key (`~` allowed) when `authMethod == .privateKey`.
     public var privateKeyPath: String
+    /// Security-scoped bookmark to the key file picked in the open panel; the sandboxed (App Store)
+    /// build can only read the key through it.
+    public var privateKeyBookmark: Data?
 
     public init(isEnabled: Bool = false, host: String = "", port: Int = 22, user: String = "",
-                authMethod: AuthMethod = .privateKey, privateKeyPath: String = "~/.ssh/id_ed25519") {
+                authMethod: AuthMethod = .privateKey, privateKeyPath: String = "~/.ssh/id_ed25519",
+                privateKeyBookmark: Data? = nil) {
         self.isEnabled = isEnabled
         self.host = host
         self.port = port
         self.user = user
         self.authMethod = authMethod
         self.privateKeyPath = privateKeyPath
+        self.privateKeyBookmark = privateKeyBookmark
     }
 
     public init(from decoder: Decoder) throws {
@@ -87,7 +92,8 @@ public struct SSHTunnelConfig: Codable, Hashable, Sendable {
             port: try c.decodeIfPresent(Int.self, forKey: .port) ?? 22,
             user: try c.decodeIfPresent(String.self, forKey: .user) ?? "",
             authMethod: try c.decodeIfPresent(AuthMethod.self, forKey: .authMethod) ?? .privateKey,
-            privateKeyPath: try c.decodeIfPresent(String.self, forKey: .privateKeyPath) ?? "~/.ssh/id_ed25519")
+            privateKeyPath: try c.decodeIfPresent(String.self, forKey: .privateKeyPath) ?? "~/.ssh/id_ed25519",
+            privateKeyBookmark: try c.decodeIfPresent(Data.self, forKey: .privateKeyBookmark))
     }
 
     /// Whether enough is filled in to start a tunnel.

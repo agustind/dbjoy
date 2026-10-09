@@ -4,3 +4,4 @@ build/
 *.xcodeproj/xcuserdata/
 DerivedData/
 .DS_Store
+appstore/*.provisionprofile

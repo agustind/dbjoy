@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DBJoy Support</title>
+  <meta name="description" content="Help with DBJoy, the native PostgreSQL client for Mac.">
+  <link rel="icon" href="../icon.png">
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main>
+  <header>
+    <a href="../"><img src="../icon.png" alt="DBJoy"></a>
+    <div>
+      <h1>DBJoy Support</h1>
+      <div class="muted">Help with the native PostgreSQL client for Mac</div>
+    </div>
+  </header>
+
+  <p>Found a bug, have a question or an idea? Email <a href="mailto:SUPPORT_EMAIL">SUPPORT_EMAIL</a> and include your
+    macOS and DBJoy versions (DBJoy ▸ About DBJoy).</p>
+
+  <h2>Common questions</h2>
+
+  <details>
+    <summary>How do I connect to a database?</summary>
+    <p>Click <strong>New connection</strong>. Paste a connection string such as
+      <code>postgres://user:password@host:5432/database?sslmode=require</code> to fill in the form, or enter the host,
+      port, user, password and database yourself. Use <strong>Test</strong> to check it, then <strong>Save &amp;
+      Connect</strong>.</p>
+  </details>
+
+  <details>
+    <summary>My database isn't reachable from my network. Can DBJoy use an SSH tunnel?</summary>
+    <p>Yes. Turn on <strong>Connect through an SSH tunnel</strong> in the connection form and enter the SSH server, user
+      and either a password or a private key. For a key, click <strong>Choose…</strong> and select the key file: the Mac
+      App Store version can only read files you pick this way. The SSH agent isn't available to the App Store version,
+      so use the key file directly.</p>
+  </details>
+
+  <details>
+    <summary>Where are my passwords stored?</summary>
+    <p>In the macOS Keychain. Connection settings, saved queries and history stay on your Mac. DBJoy doesn't collect any
+      data; see the <a href="../privacy/">privacy policy</a>.</p>
+  </details>
+
+  <details>
+    <summary>Are my edits written right away?</summary>
+    <p>No. Edits are staged and color-coded until you press <strong>⌘S</strong> or <strong>Commit</strong>, then they run
+      in one transaction. If any statement doesn't affect exactly one row, the whole batch rolls back. On connections
+      marked Production, DBJoy shows the SQL and asks before running it.</p>
+  </details>
+
+  <details>
+    <summary>How do I back up a database?</summary>
+    <p>Click <strong>Export</strong> in the sidebar and choose <strong>Backup</strong>. DBJoy writes a complete,
+      restorable <code>.sql</code> file with pg_dump, which is included in the app.</p>
+  </details>
+
+  <details>
+    <summary>Which keyboard shortcuts are there?</summary>
+    <p>⌘T new query tab · ⌘P open anything · ⌘↩ run statement · ⇧⌘↩ run all · ⌘. cancel · ⌘S commit or save ·
+      ⌘F search rows · ⌘R refresh · ⇧⌘E ER diagram · ⌥⌘E export · ⌘O open SQL file.</p>
+  </details>
+
+  <nav><a href="../">DBJoy</a><a href="../privacy/">Privacy Policy</a></nav>
+</main>
+</body>
+</html>

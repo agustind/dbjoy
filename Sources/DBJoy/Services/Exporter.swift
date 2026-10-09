@@ -66,7 +66,9 @@ final class ExportModel: Identifiable {
         if let preselect, preselect.contains(where: { $0.kind != .table }) { includeViews = true }
     }
 
+    /// The pg_dump bundled with the app, or else a Homebrew / Postgres.app install (development builds).
     static let pgDumpURL: URL? = {
+        if let bundled = BundledTools.url("pg_dump") { return bundled }
         var directories = ["/opt/homebrew/opt/libpq/bin", "/opt/homebrew/bin", "/usr/local/opt/libpq/bin", "/usr/local/bin",
                            "/Applications/Postgres.app/Contents/Versions/latest/bin"]
         if let prefix = ProcessInfo.processInfo.environment["LIBPQ_PREFIX"] { directories.insert(prefix + "/bin", at: 0) }

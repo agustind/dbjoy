@@ -18,22 +18,43 @@ struct SSHTunnelFields: View {
             }
         TextField("SSH user", text: $ssh.user, prompt: Text("ubuntu"))
         Picker("Authentication", selection: $ssh.authMethod) {
-            ForEach(SSHTunnelConfig.AuthMethod.allCases) { Text($0.displayName).tag($0) }
+            // The sandboxed (App Store) build can't reach the SSH agent's socket.
+            ForEach(SSHTunnelConfig.AuthMethod.allCases.filter { !Sandbox.isActive || $0 != .agent || ssh.authMethod == .agent }) {
+                Text($0.displayName).tag($0)
+            }
         }
         switch ssh.authMethod {
         case .privateKey:
             HStack {
                 TextField("Private key", text: $ssh.privateKeyPath, prompt: Text("~/.ssh/id_ed25519"))
+                    .onChange(of: ssh.privateKeyPath) { _, path in
+                        if path != chosenKeyPath { ssh.privateKeyBookmark = nil }
+                    }
                 Button("Choose…", action: chooseKey)
+            }
+            if Sandbox.isActive && ssh.privateKeyBookmark == nil {
+                Text("Click Choose… to give DBJoy access to the key file.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             SecureField("Key passphrase", text: $secret, prompt: Text("Only if the key has one"))
         case .password:
             SecureField("SSH password", text: $secret)
         case .agent:
-            Text("Uses the keys loaded in your SSH agent (ssh-add).")
+            Text(Sandbox.isActive
+                 ? "The SSH agent isn't available to DBJoy from the Mac App Store. Use a private key instead."
+                 : "Uses the keys loaded in your SSH agent (ssh-add).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// The path last picked in the open panel; typing a different path drops its bookmark.
+    private var chosenKeyPath: String? {
+        guard let bookmark = ssh.privateKeyBookmark else { return nil }
+        var stale = false
+        return (try? URL(resolvingBookmarkData: bookmark, options: .withSecurityScope, relativeTo: nil,
+                         bookmarkDataIsStale: &stale)).map { Sandbox.abbreviatingHome($0.path) }
     }
 
     private func chooseKey() {
@@ -41,10 +62,12 @@ struct SSHTunnelFields: View {
         panel.title = "Choose SSH Private Key"
         panel.showsHiddenFiles = true
         panel.canChooseDirectories = false
-        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
+        panel.directoryURL = Sandbox.homeDirectory.appendingPathComponent(".ssh")
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        ssh.privateKeyPath = url.path.hasPrefix(home) ? "~" + url.path.dropFirst(home.count) : url.path
+        // Bookmark first: the path's onChange keeps the bookmark only when it matches.
+        ssh.privateKeyBookmark = try? url.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                                                       includingResourceValuesForKeys: nil, relativeTo: nil)
+        ssh.privateKeyPath = Sandbox.abbreviatingHome(url.path)
     }
 }
 

@@ -1,9 +1,15 @@
 import Foundation
 
 enum AppFiles {
+    /// Application Support/DBJoy, or `DBJOY_DATA_DIR` (used for demo data and screenshots).
     static let directory: URL = {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let url = base.appendingPathComponent("DBJoy", isDirectory: true)
+        let url: URL
+        if let custom = ProcessInfo.processInfo.environment["DBJOY_DATA_DIR"], !custom.isEmpty {
+            url = URL(fileURLWithPath: (custom as NSString).expandingTildeInPath, isDirectory: true)
+        } else {
+            let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            url = base.appendingPathComponent("DBJoy", isDirectory: true)
+        }
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }()

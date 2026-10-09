@@ -22,7 +22,7 @@ Download the latest `DBJoy-<version>.dmg` from [Releases](https://github.com/agu
 drag **DBJoy** to Applications. Builds are signed with a Developer ID and notarized by Apple.
 
 - macOS 15 or later, Apple Silicon
-- Backup export uses `pg_dump` if it's installed (`brew install libpq`); everything else is self-contained
+- Self-contained: libpq and pg_dump (for backups) ship inside the app
 
 ## Features
 
@@ -76,7 +76,7 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 
 ### Export
 - CSV or JSON (one file per table), or SQL `INSERT`s (one file, ordered by foreign keys, sequences reset)
-- Full restorable backup via `pg_dump`
+- Full restorable backup via `pg_dump` (bundled with the app)
 - Rows stream from a single consistent snapshot, so large tables don't load into memory
 
 ### Appearance
@@ -123,6 +123,10 @@ Or open `Package.swift` in Xcode and run the `DBJoy` scheme.
 
 `build-app.sh` signs with the first Developer ID / Apple Development identity in your keychain (override with
 `DBJOY_SIGN_IDENTITY`). A stable signature keeps the Keychain from asking for your password after every rebuild.
+`DBJOY_SANDBOX=1 scripts/build-app.sh` builds the sandboxed variant the Mac App Store needs.
+
+Set `DBJOY_DATA_DIR=<folder>` to keep connections, saved queries and history in another folder (demos,
+screenshots) instead of `~/Library/Application Support/DBJoy`.
 
 ### Sample database
 
@@ -179,6 +183,9 @@ To add an engine, implement `DatabaseDriver`, `DatabaseConnection` and `SQLDiale
    ```sh
    gh release create v<version> build/DBJoy-<version>.dmg --title "DBJoy <version>"
    ```
+
+For the Mac App Store (sandboxed build, `.pkg` for Transporter), run `scripts/make-appstore.sh`. The one-time setup,
+listing text, screenshots and web pages are in [`appstore/`](appstore/README.md).
 
 ## License
 
