@@ -238,6 +238,7 @@ private struct EmptyWorkspace: View {
                     .buttonStyle(.outline)
                 Button { model.toggleAssistant() } label: { Label("Ask AI", systemImage: "sparkles") }
                     .buttonStyle(.outline(active: model.isAssistantVisible))
+                    .accessibilityIdentifier("ask-ai")
             }
             HStack(spacing: 16) {
                 shortcut("⌘T", "New query")
@@ -322,6 +323,7 @@ struct TabStrip: View {
             Button { model.toggleAssistant() } label: { Image(systemName: "sparkles") }
                 .buttonStyle(.ghost(active: model.isAssistantVisible))
                 .help("AI assistant (⌘J)")
+                .accessibilityIdentifier("assistant-toggle")
                 .padding(.trailing, 10)
         }
         .frame(height: 42)

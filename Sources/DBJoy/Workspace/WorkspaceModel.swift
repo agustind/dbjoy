@@ -100,6 +100,8 @@ final class WorkspaceModel {
     /// The AI assistant panel, created the first time it's shown.
     private(set) var assistant: AssistantModel?
     var isAssistantVisible = false
+    /// Where assistant chats are saved; tests use their own.
+    @ObservationIgnored var chatLibrary: ChatLibrary = .shared
 
     init(config: ConnectionConfig) {
         self.config = config
@@ -335,7 +337,7 @@ final class WorkspaceModel {
     // MARK: Assistant
 
     func toggleAssistant() {
-        if assistant == nil { assistant = AssistantModel(workspace: self) }
+        if assistant == nil { assistant = AssistantModel(workspace: self, library: chatLibrary) }
         isAssistantVisible.toggle()
     }
 

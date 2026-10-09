@@ -11,6 +11,8 @@ final class AssistantStep: Identifiable {
     var title: String
     var sql: String?
     var result: QueryResult?
+    /// Row count of the original result, when `result` holds only the first rows (reopened chats).
+    var totalRows: Int?
     var error: String?
     var state: State = .running
     @ObservationIgnored private var approval: CheckedContinuation<Bool, Never>?
@@ -54,9 +56,12 @@ final class AssistantModel {
     private static let maxSteps = 30
 
     @ObservationIgnored weak var workspace: WorkspaceModel?
+    @ObservationIgnored let library: ChatLibrary
     var items: [ChatItem] = []
     var draft = ""
     private(set) var isRunning = false
+    /// The saved chat on screen; set when its first message is sent.
+    private(set) var chatID: UUID?
 
     /// Where API keys come from; tests substitute their own.
     @ObservationIgnored var apiKey: (AIProvider) -> String? = AssistantSettings.apiKey(for:)
@@ -67,9 +72,12 @@ final class AssistantModel {
     /// The assistant's own session, so its read-only transactions never touch the user's tabs.
     @ObservationIgnored private var connection: (any DatabaseConnection)?
 
-    init(workspace: WorkspaceModel) {
+    init(workspace: WorkspaceModel, library: ChatLibrary = .shared) {
         self.workspace = workspace
+        self.library = library
     }
+
+    var title: String? { chatID.flatMap { library.summary($0)?.title } }
 
     var hasAPIKey: Bool { apiKey(AssistantSettings.provider) != nil }
 
@@ -85,11 +93,38 @@ final class AssistantModel {
         guard !text.isEmpty, !isRunning else { return }
         draft = ""
         items.append(ChatItem(kind: .user(text)))
+        if chatID == nil { chatID = UUID() }
+        persist()
         isRunning = true
+        let id = chatID
         task = Task { [weak self] in
             await self?.respond(to: text)
             self?.isRunning = false
+            // Skip if another chat was opened meanwhile.
+            if self?.chatID == id { self?.persist() }
         }
+    }
+
+    /// Opens a saved chat, stopping any reply in progress.
+    func open(_ id: UUID) {
+        guard id != chatID, let stored = library.load(id) else { return }
+        reset()
+        items = stored.items.compactMap(\.chatItem)
+        conversation = stored.conversation
+        chatID = id
+    }
+
+    /// Saves the chat on screen, titled after its first message.
+    private func persist() {
+        guard let chatID, let workspace, !items.isEmpty else { return }
+        let firstMessage = items.lazy.compactMap { item -> String? in
+            if case .user(let text) = item.kind { return text }
+            return nil
+        }.first ?? "Chat"
+        let line = firstMessage.split(separator: "\n").first.map(String.init) ?? firstMessage
+        let title = line.count > 60 ? String(line.prefix(60)).trimmingCharacters(in: .whitespaces) + "…" : line
+        library.save(chatID, title: title, connectionID: workspace.config.id,
+                      content: StoredChat(conversation: conversation, items: items.map(StoredChatItem.init)))
     }
 
     /// Waits for the current reply to finish.
@@ -110,6 +145,7 @@ final class AssistantModel {
         stop()
         items = []
         conversation = nil
+        chatID = nil
         generation += 1
     }
 
@@ -132,8 +168,16 @@ final class AssistantModel {
         func show(_ kind: ChatItem.Kind) { if isCurrent { items.append(ChatItem(kind: kind)) } }
 
         // A different provider can't read the other's history, so switching starts over.
-        var chat = conversation.flatMap { $0.provider == provider && $0.model == model ? $0 : nil }
-            ?? LLMConversation(provider: provider, model: model)
+        var chat: LLMConversation
+        if let conversation, conversation.provider == provider {
+            chat = conversation
+            chat.model = model
+        } else {
+            if conversation.map({ !$0.isEmpty }) == true {
+                show(.problem("Switched to \(provider.displayName). Earlier messages in this chat aren't sent to it."))
+            }
+            chat = LLMConversation(provider: provider, model: model)
+        }
         chat.addUser(text)
         conversation = chat
 
@@ -166,6 +210,7 @@ final class AssistantModel {
             guard isCurrent else { return }
             chat.addToolResults(outputs)
             conversation = chat
+            persist()
             if Task.isCancelled { return }
         }
         show(.problem("Stopped after \(Self.maxSteps) steps. Send a message to continue."))
@@ -327,7 +372,7 @@ final class AssistantModel {
             "- Answer questions about the data by running queries with run_query. Never guess values, counts or column names.",
             "- Check a table with describe_table before querying it, unless you already know its columns.",
             "- Write \(engine) SQL. Qualify tables outside the current schema, and add LIMIT to exploratory queries.",
-            "- The user sees every query you run and its full result in the chat, so summarize findings instead of repeating rows.",
+            "- The user sees every query you run and its full result in the chat, so summarize findings instead of repeating rows or tables.",
             "- When the user asks you to write or build a query, call open_in_editor with it, and show it in a ```sql block.",
         ]
         if allowsWrites {

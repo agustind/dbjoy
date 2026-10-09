@@ -116,4 +116,17 @@ struct MarkdownSegmentTests {
             """
         #expect(MarkdownView.segments(text) == [.text("Here you go:"), .code("SELECT 1;"), .text("Done.")])
     }
+
+    @Test func parsesTables() {
+        let text = """
+            Totals:
+            | Category | Revenue |
+            |---|---:|
+            | Grinders | $202,888 |
+            Grinders lead.
+            """
+        #expect(MarkdownView.segments(text) == [
+            .text("Totals:"), .table([["Category", "Revenue"], ["Grinders", "$202,888"]]), .text("Grinders lead."),
+        ])
+    }
 }

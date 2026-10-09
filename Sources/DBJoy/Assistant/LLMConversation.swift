@@ -36,9 +36,10 @@ struct LLMError: LocalizedError {
 
 /// A chat with tool use, kept in the provider's own message format so everything the API
 /// returns (including thinking blocks) is sent back unchanged. History is append-only.
-struct LLMConversation: Sendable {
+struct LLMConversation: Codable, Sendable {
     let provider: AIProvider
-    let model: String
+    /// Can change mid-chat; the history stays valid within one provider.
+    var model: String
     private(set) var messages: [JSONValue] = []
 
     init(provider: AIProvider, model: String) {

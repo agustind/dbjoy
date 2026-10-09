@@ -36,6 +36,7 @@ final class ConnectionStore {
         connections.removeAll { $0.id == id }
         Keychain.setPassword(nil, for: id)
         Keychain.setPassword(nil, for: id, ssh: true)
+        ChatLibrary.shared.deleteChats(for: id)
         persist()
     }
 

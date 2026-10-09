@@ -78,6 +78,8 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Ask about your data in plain language (⌘J): the assistant looks up table structures, runs queries and answers
   with the results, shown inline in the chat
 - Ask it to write SQL and it opens the query in a new tab for you to review, run or save
+- Chats are saved automatically per connection; reopen one to pick up where you left off, and organize them in
+  folders (drag a chat onto a folder, or use its context menu to rename, move or delete it)
 - Bring your own Anthropic or OpenAI API key (Settings → AI Assistant); keys are stored in the macOS Keychain, and the
   model is configurable
 - Read-only by default: its queries run in read-only transactions. Turn on **Allow the assistant to change data** to

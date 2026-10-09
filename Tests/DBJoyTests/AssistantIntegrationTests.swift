@@ -66,7 +66,8 @@ final class ScriptedLLM: URLProtocol, @unchecked Sendable {
 struct AssistantIntegrationTests {
     static let env = ProcessInfo.processInfo.environment
 
-    private func connectedAssistant() async throws -> (WorkspaceModel, AssistantModel) {
+    private func connectedAssistant(library: ChatLibrary = ChatLibrary(directory: temporaryDirectory()))
+        async throws -> (WorkspaceModel, AssistantModel) {
         URLProtocol.registerClass(ScriptedLLM.self)
         ScriptedLLM.requests = []
         let config = ConnectionConfig(name: "test", host: "localhost", port: Int(Self.env["DBJOY_TEST_PG_PORT"] ?? "") ?? 55432,
@@ -74,6 +75,7 @@ struct AssistantIntegrationTests {
         let workspace = WorkspaceModel(config: config)
         await workspace.submitPassword(Self.env["DBJOY_TEST_PG_PASSWORD"] ?? "secret")
         try #require(workspace.phase == .connected)
+        workspace.chatLibrary = library
         workspace.toggleAssistant()
         let assistant = try #require(workspace.assistant)
         assistant.apiKey = { _ in "test-key" }
@@ -121,6 +123,42 @@ struct AssistantIntegrationTests {
 
         #expect(try await count(workspace, "SELECT count(*) FROM customers") == before)
         if case .reply(let text) = assistant.items.last?.kind { #expect(text.contains("customers")) } else { Issue.record("no reply") }
+    }
+
+    @Test func chatsAreSavedAndContinueAfterReopening() async throws {
+        UserDefaults.standard.set(false, forKey: AssistantSettings.allowWritesKey)
+        let library = ChatLibrary(directory: temporaryDirectory())
+        let (workspace, assistant) = try await connectedAssistant(library: library)
+        defer { Task { await workspace.disconnect() } }
+
+        ScriptedLLM.responses = [
+            ScriptedLLM.toolUse([("c1", "run_query", ["sql": "SELECT count(*) AS n FROM customers"])]),
+            ScriptedLLM.reply("You have some customers."),
+        ]
+        await ask(assistant, "How many customers do we have?")
+        let id = try #require(assistant.chatID)
+        let summary = try #require(library.summary(id))
+        #expect(summary.title == "How many customers do we have?")
+        #expect(summary.connectionID == workspace.config.id)
+
+        // A new chat, then back to the saved one.
+        assistant.reset()
+        #expect(assistant.items.isEmpty)
+        assistant.open(id)
+        #expect(assistant.items.count == 3)
+        if case .step(let step) = assistant.items[1].kind {
+            #expect(step.state == .done)
+            #expect(step.result?.rows.count == 1)
+        } else { Issue.record("expected a step") }
+
+        // Continuing sends the earlier history along.
+        ScriptedLLM.requests = []
+        ScriptedLLM.responses = [ScriptedLLM.reply("Same as before.")]
+        await ask(assistant, "And now?")
+        let messages = try #require(ScriptedLLM.requests.first?["messages"]?.arrayValue)
+        #expect(messages.count == 5)
+        #expect(messages.first?["content"] == "How many customers do we have?")
+        #expect(library.load(id)?.items.count == 5)
     }
 
     @Test func writesAreAtomicAndOpenInEditorAddsATab() async throws {

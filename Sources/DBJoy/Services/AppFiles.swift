@@ -19,17 +19,25 @@ enum AppFiles {
     }
 
     static func load<T: Decodable>(_ type: T.Type, from name: String) -> T? {
-        guard let data = try? Data(contentsOf: url(name)) else { return nil }
+        load(type, at: url(name))
+    }
+
+    static func save<T: Encodable>(_ value: T, to name: String) {
+        save(value, at: url(name))
+    }
+
+    static func load<T: Decodable>(_ type: T.Type, at url: URL) -> T? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try? decoder.decode(type, from: data)
     }
 
-    static func save<T: Encodable>(_ value: T, to name: String) {
+    static func save<T: Encodable>(_ value: T, at url: URL) {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(value) else { return }
-        try? data.write(to: url(name), options: .atomic)
+        try? data.write(to: url, options: .atomic)
     }
 }

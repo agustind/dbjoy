@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// LLM service that powers the assistant.
-enum AIProvider: String, CaseIterable, Identifiable, Sendable {
+enum AIProvider: String, CaseIterable, Codable, Identifiable, Sendable {
     case anthropic, openai
 
     var id: String { rawValue }

@@ -9,20 +9,23 @@ struct AssistantPanel: View {
     @AppStorage(AssistantSettings.providerKey) private var provider: AIProvider = .anthropic
     @AppStorage(AssistantSettings.allowWritesKey) private var allowWrites = false
     @State private var hasKey = true
+    @State private var showsChats = false
     @FocusState private var isComposerFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Rectangle().fill(Theme.separator).frame(height: 1)
-            if !hasKey {
+            if showsChats {
+                ChatBrowser(model: model, connectionID: workspace.config.id) { showsChats = false }
+            } else if !hasKey {
                 missingKey
             } else if model.items.isEmpty {
                 suggestions
             } else {
                 transcript
             }
-            composer
+            if !showsChats { composer }
         }
         .background(Theme.contentBackground)
         .onAppear {
@@ -40,15 +43,25 @@ struct AssistantPanel: View {
         HStack(spacing: 8) {
             Image(systemName: "sparkles").foregroundStyle(Theme.accentText)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Assistant").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                Text(model.title ?? "Assistant").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
                 Text(AssistantSettings.model(for: provider))
                     .font(.system(size: 11)).foregroundStyle(Theme.textTertiary).lineLimit(1)
             }
             Spacer()
-            Button { model.reset() } label: { Image(systemName: "square.and.pencil") }
+            Button { showsChats.toggle() } label: { Image(systemName: "list.bullet") }
+                .buttonStyle(.ghost(active: showsChats))
+                .help("Saved chats")
+                .accessibilityIdentifier("assistant-chats")
+            Button {
+                model.reset()
+                showsChats = false
+                isComposerFocused = true
+            } label: { Image(systemName: "square.and.pencil") }
                 .buttonStyle(.ghost)
                 .help("New chat")
-                .disabled(model.items.isEmpty)
+                .disabled(model.items.isEmpty && !showsChats)
+                .accessibilityIdentifier("assistant-new-chat")
             Button { workspace.toggleAssistant() } label: { Image(systemName: "xmark") }
                 .buttonStyle(.ghost)
                 .help("Hide assistant (⌘J)")
@@ -131,6 +144,7 @@ struct AssistantPanel: View {
                     .focused($isComposerFocused)
                     .onSubmit { model.send() }
                     .disabled(!hasKey)
+                    .accessibilityIdentifier("assistant-input")
                 if model.isRunning {
                     Button { model.stop() } label: { Image(systemName: "stop.fill") }
                         .buttonStyle(.primary)
@@ -139,6 +153,7 @@ struct AssistantPanel: View {
                     Button { model.send() } label: { Image(systemName: "arrow.up") }
                         .buttonStyle(.primary)
                         .help("Send (↩)")
+                        .accessibilityIdentifier("assistant-send")
                         .disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !hasKey)
                 }
             }
@@ -227,7 +242,7 @@ private struct StepView: View {
                 if result.returnsRows {
                     ResultPreview(result: result)
                     HStack {
-                        Text("\(result.rows.count)\(result.truncated ? "+" : "") row(s)")
+                        Text("\(step.totalRows ?? result.rows.count)\(result.truncated ? "+" : "") row(s)")
                             .font(.system(size: 11)).foregroundStyle(Theme.textTertiary)
                         Spacer()
                         if let sql = step.sql {
@@ -329,6 +344,8 @@ struct MarkdownView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 case .code(let code):
                     CodeBlock(code: code, workspace: workspace)
+                case .table(let rows):
+                    MarkdownTable(rows: rows)
                 }
             }
         }
@@ -338,9 +355,12 @@ struct MarkdownView: View {
     enum Segment: Equatable {
         case text(String)
         case code(String)
+        /// Rows of cells; the first row is the header.
+        case table([[String]])
     }
 
-    /// Splits on ``` fences; text between them is split into paragraphs on blank lines.
+    /// Splits on ``` fences; text between them is split into paragraphs on blank lines,
+    /// and runs of `| a | b |` lines become tables.
     static func segments(_ text: String) -> [Segment] {
         var segments: [Segment] = []
         var buffer: [Substring] = []
@@ -354,7 +374,7 @@ struct MarkdownView: View {
             } else {
                 for paragraph in joined.components(separatedBy: "\n\n")
                 where !paragraph.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    segments.append(.text(paragraph.trimmingCharacters(in: .newlines)))
+                    segments += textAndTables(paragraph.trimmingCharacters(in: .newlines))
                 }
             }
         }
@@ -371,16 +391,76 @@ struct MarkdownView: View {
         return segments
     }
 
-    private static func attributed(_ paragraph: String) -> AttributedString {
+    private static func textAndTables(_ paragraph: String) -> [Segment] {
+        var segments: [Segment] = []
+        var text: [String] = []
+        var table: [[String]] = []
+        func flushText() {
+            if !text.isEmpty { segments.append(.text(text.joined(separator: "\n"))) }
+            text = []
+        }
+        func flushTable() {
+            if !table.isEmpty { segments.append(.table(table)) }
+            table = []
+        }
+        for line in paragraph.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("|"), trimmed.hasSuffix("|"), trimmed.count > 1 {
+                flushText()
+                let cells = trimmed.dropFirst().dropLast().split(separator: "|", omittingEmptySubsequences: false)
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                // Skip the |---|:--:| separator row.
+                if !cells.allSatisfy({ $0.allSatisfy { "-: ".contains($0) } }) { table.append(cells) }
+            } else {
+                flushTable()
+                text.append(String(line))
+            }
+        }
+        flushText()
+        flushTable()
+        return segments
+    }
+
+    static func attributed(_ paragraph: String) -> AttributedString {
         // Headings become bold lines; everything else is inline Markdown.
         let lines = paragraph.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
             let trimmed = line.drop { $0 == "#" }
             if trimmed.count < line.count, trimmed.hasPrefix(" ") { return "**\(trimmed.trimmingCharacters(in: .whitespaces))**" }
+            // List markers become bullets.
+            let indent = line.prefix { $0 == " " }
+            let rest = line.dropFirst(indent.count)
+            if rest.hasPrefix("- ") || rest.hasPrefix("* ") { return indent + "• " + rest.dropFirst(2) }
             return String(line)
         }
         let source = lines.joined(separator: "\n")
         return (try? AttributedString(markdown: source, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
             ?? AttributedString(source)
+    }
+}
+
+private struct MarkdownTable: View {
+    var rows: [[String]]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 5) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    GridRow {
+                        ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                            Text(MarkdownView.attributed(cell))
+                                .font(.system(size: 12, weight: index == 0 ? .semibold : .regular))
+                                .foregroundStyle(index == 0 ? Theme.textSecondary : Theme.textPrimary)
+                                .lineLimit(1)
+                        }
+                    }
+                    if index == 0 { Divider() }
+                }
+            }
+            .padding(10)
+            .textSelection(.enabled)
+        }
+        .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.border, lineWidth: 1))
     }
 }
 
