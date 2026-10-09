@@ -19,6 +19,7 @@
 * { box-sizing: border-box; }
 body {
   margin: 0;
+  overflow-x: clip;
   background: var(--bg);
   color: var(--text);
   font: 17px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
@@ -33,7 +34,38 @@ p, li { color: var(--text); }
 .muted { color: var(--muted); }
 a { color: var(--accent); }
 nav { display: flex; gap: 20px; margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 15px; }
-.hero { width: 100%; border-radius: 12px; border: 1px solid var(--border); margin: 24px 0; }
+code { font: 0.9em ui-monospace, "SF Mono", Menlo, monospace; }
+
+/* Screenshot carousel: wider than the text column, one slide per view, swipe or arrows. */
+.carousel {
+  position: relative; width: min(1100px, calc(100vw - 32px));
+  margin: 28px 0 8px calc(50% - min(550px, 50vw - 16px));
+}
+.track {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+}
+.track::-webkit-scrollbar { display: none; }
+.track:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.track figure { flex: 0 0 100%; margin: 0; padding: 10px 24px 34px; scroll-snap-align: start; }
+/* Raw window captures: transparent rounded corners, so a shadow frames them. */
+.track img { display: block; width: 100%; height: auto; filter: drop-shadow(0 12px 24px rgba(40, 20, 45, 0.22)); }
+.arrow {
+  position: absolute; top: calc(50% - 18px); transform: translateY(-50%);
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--card); color: var(--text); font-size: 26px; line-height: 1; cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+.arrow:hover { color: var(--accent); }
+.arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.prev { left: -8px; }
+.next { right: -8px; }
+.dots { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+.dots button {
+  width: 8px; height: 8px; padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--border);
+}
+.dots button[aria-current="true"] { background: var(--accent); width: 22px; border-radius: 4px; }
+@media (max-width: 600px) { .arrow { display: none; } }
 .cta {
   display: inline-block; background: var(--accent); color: var(--bg); padding: 10px 20px;
   border-radius: 10px; font-weight: 600; text-decoration: none;

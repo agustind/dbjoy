@@ -35,6 +35,10 @@ SHOTS = [
      "Folders, stars, SSH tunnels, read-only mode and passwords in the Keychain.", "side"),
     ("08-structure-dark", DARK, "Change structure [without the DDL].",
      "Columns, indexes and constraints, applied as reviewed ALTER statements.", "center"),
+    ("09-assistant", LIGHT, "Ask your database [anything].",
+     "The AI assistant reads your schema, runs read-only queries and answers in plain language.", "center"),
+    ("10-assistant-sql-dark", DARK, "SQL, [written for you].",
+     "Describe what you need. The assistant writes the query and opens it in a tab, ready to run.", "center"),
 ]
 
 

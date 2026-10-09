@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DBJoy for Mac</title>
-  <meta name="description" content="A fast, native PostgreSQL client for the Mac. Browse schemas, edit data safely, write SQL and export.">
+  <meta name="description" content="The AI-first PostgreSQL client for the Mac. Ask your database questions in plain language, get SQL written for you, and browse, edit and export with a fast, native app.">
   <link rel="icon" href="icon.png">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -14,31 +14,101 @@
     <img src="icon.png" alt="">
     <div>
       <h1>DBJoy</h1>
-      <div class="muted">A fast, native PostgreSQL client for the Mac</div>
+      <div class="muted">The AI-first PostgreSQL client for the Mac</div>
     </div>
   </header>
 
-  <p>Browse schemas, edit data without fear, write SQL and export, all in a clean, keyboard-friendly app.
-    Edits are staged and color-coded, commit in one transaction, and on production DBJoy shows you the SQL before
-    anything runs.</p>
+  <p>Ask your database anything in plain language and get answers backed by real queries, or describe what you need
+    and get the SQL written for you. Then browse, edit and export in a fast, native app: edits are staged and
+    color-coded, commit in one transaction, and on production DBJoy shows you the SQL before anything runs.</p>
 
-  <!-- Replace APP_STORE_URL with the app's App Store link once it's live. -->
-  <p><a class="cta" href="APP_STORE_URL">Download on the Mac App Store</a></p>
+  <p><a class="cta" href="https://github.com/agustind/dbjoy/releases/latest">Download for macOS</a></p>
 
-  <img class="hero" src="screenshot.png" alt="DBJoy showing a customers table with the row details panel open">
+  <section class="carousel" aria-roledescription="carousel" aria-label="Screenshots">
+    <div class="track" tabindex="0">
+      <figure><img src="screens/09-assistant.webp" width="1440" height="900" alt="The AI assistant answering which categories brought in the most revenue, with the query it ran and its results"></figure>
+      <figure><img src="screens/10-assistant-sql-dark.webp" width="1440" height="900" loading="lazy" alt="The assistant writing a top-customers query and opening it in a query tab, in dark mode"></figure>
+      <figure><img src="screens/01-browse.webp" width="1440" height="900" loading="lazy" alt="Browsing a customers table with the row details panel open"></figure>
+      <figure><img src="screens/02-edit.webp" width="1440" height="900" loading="lazy" alt="Staged, color-coded edits in the data grid"></figure>
+      <figure><img src="screens/03-review.webp" width="1440" height="900" loading="lazy" alt="Reviewing the SQL of a change before it runs on production"></figure>
+      <figure><img src="screens/04-sql.webp" width="1440" height="900" loading="lazy" alt="The SQL editor with completion and multiple result sets"></figure>
+      <figure><img src="screens/05-diagram.webp" width="1440" height="900" loading="lazy" alt="An ER diagram of a schema"></figure>
+      <figure><img src="screens/06-search-dark.webp" width="1440" height="900" loading="lazy" alt="Searching rows by column and operator, in dark mode"></figure>
+      <figure><img src="screens/07-connections.webp" width="1440" height="900" loading="lazy" alt="Saved connections grouped and color-coded by environment"></figure>
+      <figure><img src="screens/08-structure-dark.webp" width="1440" height="900" loading="lazy" alt="Editing a table's structure, in dark mode"></figure>
+    </div>
+    <button class="arrow prev" type="button" aria-label="Previous screenshot">‹</button>
+    <button class="arrow next" type="button" aria-label="Next screenshot">›</button>
+    <div class="dots" role="group" aria-label="Choose a screenshot"></div>
+  </section>
 
   <h2>Highlights</h2>
   <ul>
+    <li><strong>AI assistant</strong> (⌘J): ask questions in plain language. It reads your schema, runs read-only
+      queries and answers with the numbers.</li>
+    <li><strong>SQL written for you</strong>: describe what you need and the query opens in a tab, ready to run</li>
+    <li>Chats are saved automatically. Pick up where you left off, and organize them in folders</li>
+    <li>Bring your own Anthropic or OpenAI key. Read-only by default; any change it proposes waits for your approval</li>
     <li>Safe editing: staged changes, one-transaction commits, SQL review on production</li>
-    <li>SQL editor with alias-aware completion, multiple result sets and per-tab transactions</li>
+    <li>SQL editor with alias-aware completion, multiple result sets and per-tab transactions; open and run
+      <code>.sql</code> files</li>
     <li>⌘F search by column and operator, ⌘P to open anything, and ER diagrams</li>
     <li>Structure editing through reviewed ALTER statements</li>
     <li>SSH tunnels, SSL, read-only connections and Keychain passwords</li>
-    <li>CSV, JSON and SQL export, plus full pg_dump backups</li>
+    <li>Connection icons and a starred bar to switch connections in one click</li>
+    <li>CSV, JSON and SQL export, plus full pg_dump backups (pg_dump is built in)</li>
     <li>No account, no tracking. Light and dark themes</li>
   </ul>
 
   <nav><a href="support/">Support</a><a href="privacy/">Privacy Policy</a></nav>
 </main>
+<script>
+  (() => {
+    const root = document.querySelector('.carousel');
+    const track = root.querySelector('.track');
+    const slides = [...track.children];
+    const dots = root.querySelector('.dots');
+    const smooth = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    let current = 0;
+
+    slides.forEach((slide, i) => {
+      slide.setAttribute('role', 'group');
+      slide.setAttribute('aria-roledescription', 'slide');
+      slide.setAttribute('aria-label', `${i + 1} of ${slides.length}`);
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.setAttribute('aria-label', `Screenshot ${i + 1}`);
+      dot.addEventListener('click', () => go(i));
+      dots.append(dot);
+    });
+
+    function go(i) {
+      const index = (i + slides.length) % slides.length;
+      track.scrollTo({ left: slides[index].offsetLeft - track.offsetLeft, behavior: smooth });
+      setCurrent(index);
+    }
+
+    function setCurrent(index) {
+      current = index;
+      [...dots.children].forEach((dot, i) => dot.setAttribute('aria-current', i === current));
+    }
+
+    // Keeps the dots in sync when the user swipes or scrolls the track directly.
+    let settle;
+    function update() {
+      clearTimeout(settle);
+      settle = setTimeout(() => setCurrent(Math.round(track.scrollLeft / track.clientWidth)), 120);
+    }
+
+    root.querySelector('.prev').addEventListener('click', () => go(current - 1));
+    root.querySelector('.next').addEventListener('click', () => go(current + 1));
+    track.addEventListener('scroll', update, { passive: true });
+    track.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); go(current - 1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); go(current + 1); }
+    });
+    setCurrent(0);
+  })();
+</script>
 </body>
 </html>
