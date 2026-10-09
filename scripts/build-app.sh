@@ -38,7 +38,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
-    <key>NSHumanReadableCopyright</key><string>© 2026 Agu Dondo. All rights reserved.</string>
+    <key>NSHumanReadableCopyright</key><string>© 2026 Agu Dondo. MIT License.</string>
     <key>ITSAppUsesNonExemptEncryption</key><false/>
 </dict>
 </plist>

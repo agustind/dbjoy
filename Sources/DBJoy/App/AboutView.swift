@@ -43,7 +43,7 @@ struct AboutView: View {
             .font(.system(size: 13))
             .foregroundStyle(Theme.textPrimary)
 
-            Text("© 2026 Agu Dondo. All rights reserved.")
+            Text("© 2026 Agu Dondo. MIT License.")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.textTertiary)
                 .padding(.bottom, 6)

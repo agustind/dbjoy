@@ -204,4 +204,4 @@ listing text, screenshots and web pages are in [`appstore/`](appstore/README.md)
 
 ## License
 
-Proprietary. All rights reserved. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
