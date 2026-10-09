@@ -9,11 +9,13 @@
 </pre>
 </div>
 
-A fast, native macOS client for PostgreSQL. Browse schemas, edit data safely, write SQL and export, all in a
-keyboard-friendly SwiftUI app. More database engines can be added as drivers.
+The AI-first PostgreSQL client for the Mac. Ask questions about your data in plain language and get answers backed
+by real queries, or have the SQL written for you, with your own Anthropic or OpenAI key. Then browse schemas, edit
+data safely, write SQL and export, all in a fast, keyboard-friendly SwiftUI app. More database engines can be added
+as drivers.
 
 <p align="center">
-  <img src="screenshot.png" alt="DBJoy browsing a customers table, with the row details panel open" width="720">
+  <img src="screenshot.png" alt="DBJoy's AI assistant answering which categories brought in the most revenue, next to the products table" width="720">
 </p>
 
 ## Install
@@ -25,6 +27,18 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Self-contained: libpq and pg_dump (for backups) ship inside the app
 
 ## Features
+
+### AI assistant
+- Ask about your data in plain language (⌘J): the assistant looks up table structures, runs queries and answers
+  with the results, shown inline in the chat
+- Ask it to write SQL and it opens the query in a new tab for you to review, run or save
+- Chats are saved automatically per connection; reopen one to pick up where you left off, and organize them in
+  folders (drag a chat onto a folder, or use its context menu to rename, move or delete it)
+- Bring your own Anthropic or OpenAI API key (Settings → AI Assistant); keys are stored in the macOS Keychain, and the
+  model is configurable
+- Read-only by default: its queries run in read-only transactions. Turn on **Allow the assistant to change data** to
+  let it run INSERT/UPDATE/DELETE and schema changes, each in one transaction, with an approval step before each change
+  (always on production connections; never on read-only connections)
 
 ### Connections
 - Saved connections grouped into folders and tagged by environment: local, development, testing, staging, production
@@ -73,18 +87,6 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Saved queries (per connection or shared) and per-connection history
 - Open `.sql` files (⌘O, or drag them onto a query tab) and optionally run them right away; Run SQL File… (⇧⌘O)
   opens and runs in one step. psql-only commands such as `\connect` or `\copy` are flagged before anything runs
-
-### AI assistant
-- Ask about your data in plain language (⌘J): the assistant looks up table structures, runs queries and answers
-  with the results, shown inline in the chat
-- Ask it to write SQL and it opens the query in a new tab for you to review, run or save
-- Chats are saved automatically per connection; reopen one to pick up where you left off, and organize them in
-  folders (drag a chat onto a folder, or use its context menu to rename, move or delete it)
-- Bring your own Anthropic or OpenAI API key (Settings → AI Assistant); keys are stored in the macOS Keychain, and the
-  model is configurable
-- Read-only by default: its queries run in read-only transactions. Turn on **Allow the assistant to change data** to
-  let it run INSERT/UPDATE/DELETE and schema changes, each in one transaction, with an approval step before each change
-  (always on production connections; never on read-only connections)
 
 ### Export
 - CSV or JSON (one file per table), or SQL `INSERT`s (one file, ordered by foreign keys, sequences reset)
