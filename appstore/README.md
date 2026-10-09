@@ -49,9 +49,10 @@ access that the backup test exercised.
    Distribution certificate. Download it to `appstore/DBJoy_Mac_App_Store.provisionprofile` (git-ignored).
 4. **App record.** In [App Store Connect](https://appstoreconnect.apple.com) ▸ Apps ▸ + ▸ New App: platform macOS,
    name `DBJoy: PostgreSQL Client`, bundle ID `app.dbjoy.DBJoy`, SKU `dbjoy-macos`.
-5. **Web pages.** Copy `site/dbjoy/` into the dondo.dev site, so that `dondo.dev/dbjoy`, `/dbjoy/support/` and
-   `/dbjoy/privacy/` work. First replace `SUPPORT_EMAIL` in the support and privacy pages with a real address, and
-   later point the landing page's Download button at the App Store if you want. The privacy policy URL is required before you can submit.
+5. **Web pages.** `site/dbjoy/` is published at `dondo.dev/dbjoy` (with `/dbjoy/support/` and `/dbjoy/privacy/`)
+   by copying it into `public/dbjoy/` of the dondo.dev repo, which Vercel deploys on push. Support goes through
+   GitHub Issues. Point the landing page's Download button at the App Store once it's live, if you want. The privacy
+   policy URL is required before you can submit.
 6. **Review server.** App Review needs a PostgreSQL server it can reach. Create a small hosted database (any
    provider with a free tier will do), run `psql "<connection string>" -f appstore/demo-db.sql`, and put its
    connection string into the review notes from `listing.md`. Use a database with nothing else in it: the reviewer
