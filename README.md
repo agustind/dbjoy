@@ -181,27 +181,6 @@ Sources/
 To add an engine, implement `DatabaseDriver`, `DatabaseConnection` and `SQLDialect` in a new target, add a
 `DatabaseKind` case, and register it in `Sources/DBJoy/Services/Drivers.swift`.
 
-## Releasing
-
-1. Bump `CFBundleShortVersionString` in `scripts/build-app.sh`.
-2. Build, sign and notarize the DMG:
-
-   ```sh
-   scripts/make-dmg.sh              # build/DBJoy-<version>.dmg
-   ```
-
-   The app bundles libpq and its OpenSSL/Kerberos dependencies in `Contents/Frameworks`, so it runs without Homebrew.
-   The DMG is notarized and stapled with the `dondo` notarytool keychain profile (override with
-   `DBJOY_NOTARY_PROFILE=<profile>`, or set it empty to skip).
-3. Publish it:
-
-   ```sh
-   gh release create v<version> build/DBJoy-<version>.dmg --title "DBJoy <version>"
-   ```
-
-For the Mac App Store (sandboxed build, `.pkg` for Transporter), run `scripts/make-appstore.sh`. The one-time setup,
-listing text, screenshots and web pages are in [`appstore/`](appstore/README.md).
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
