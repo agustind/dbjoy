@@ -7,10 +7,14 @@ final class ConnectionStore {
     static let shared = ConnectionStore()
 
     private(set) var connections: [ConnectionConfig] = []
+    /// Order of the starred bar once the user has dragged in it; starred connections not in it follow by name.
+    private(set) var starredOrder: [UUID] = []
     private let fileName = "connections.json"
+    private let starredOrderKey = "starredOrder"
 
     private init() {
         connections = AppFiles.load([ConnectionConfig].self, from: fileName) ?? []
+        starredOrder = (UserDefaults.standard.stringArray(forKey: starredOrderKey) ?? []).compactMap(UUID.init)
     }
 
     func connection(id: UUID) -> ConnectionConfig? {
@@ -41,8 +45,35 @@ final class ConnectionStore {
     }
 
     var starredConnections: [ConnectionConfig] {
-        connections.filter(\.isStarred)
-            .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+        let rank = Dictionary(starredOrder.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        return connections.filter(\.isStarred).sorted { a, b in
+            switch (rank[a.id], rank[b.id]) {
+            case let (x?, y?): x < y
+            case (.some, nil): true
+            case (nil, .some): false
+            case (nil, nil): a.displayName.localizedStandardCompare(b.displayName) == .orderedAscending
+            }
+        }
+    }
+
+    /// Moves a starred connection to where `target` is in the starred bar.
+    func moveStarred(_ id: UUID, to target: UUID) {
+        var ids = starredConnections.map(\.id)
+        guard let from = ids.firstIndex(of: id), let to = ids.firstIndex(of: target), from != to else { return }
+        ids.insert(ids.remove(at: from), at: to)
+        setStarredOrder(ids)
+    }
+
+    /// Moves a starred connection up (negative) or down (positive) in the starred bar.
+    func moveStarred(_ id: UUID, by offset: Int) {
+        let ids = starredConnections.map(\.id)
+        guard let from = ids.firstIndex(of: id), ids.indices.contains(from + offset) else { return }
+        moveStarred(id, to: ids[from + offset])
+    }
+
+    private func setStarredOrder(_ ids: [UUID]) {
+        starredOrder = ids
+        UserDefaults.standard.set(ids.map(\.uuidString), forKey: starredOrderKey)
     }
 
     /// Saves SSH tunnel settings for a connection; `secret` (password or key passphrase) goes to the Keychain.
@@ -62,6 +93,8 @@ final class ConnectionStore {
     func toggleStar(_ id: UUID) {
         guard let index = connections.firstIndex(where: { $0.id == id }) else { return }
         connections[index].isStarred.toggle()
+        // Once the bar has an order, new stars go to the end and unstarred ones leave it.
+        if !starredOrder.isEmpty { setStarredOrder(starredConnections.map(\.id)) }
         persist()
     }
 

@@ -10,6 +10,8 @@ struct StarredRail: View {
     var openHere: (ConnectionConfig) -> Void
     @AppStorage("starredRailExpanded") private var isExpanded = false
     @AppStorage(StarredRail.newWindowKey) private var opensNewWindow = false
+    /// The connection being dragged to reorder the bar.
+    @State private var dragging: UUID?
 
     static let newWindowKey = "starredOpensNewWindow"
     @Environment(\.openWindow) private var openWindow
@@ -43,6 +45,13 @@ struct StarredRail: View {
                                     hint: opensNewWindow ? "⌘-click to open in this window" : "⌘-click to open in a new window") {
                             open(config)
                         }
+                        .onDrag {
+                            dragging = config.id
+                            return NSItemProvider(object: config.id.uuidString as NSString)
+                        }
+                        .onDrop(of: [.text], delegate: StarredDropDelegate(target: config.id, dragging: $dragging))
+                        .accessibilityAction(named: "Move Up") { store.moveStarred(config.id, by: -1) }
+                        .accessibilityAction(named: "Move Down") { store.moveStarred(config.id, by: 1) }
                     }
                     if starred.isEmpty, isExpanded {
                         Text("Star connections in the Connections window to pin them here.")
@@ -107,6 +116,26 @@ struct StarredRail: View {
     }
 }
 
+/// Reorders the bar live as a dragged connection passes over the others.
+private struct StarredDropDelegate: DropDelegate {
+    var target: UUID
+    @Binding var dragging: UUID?
+
+    func validateDrop(info: DropInfo) -> Bool { dragging != nil }
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != target else { return }
+        withAnimation(.easeInOut(duration: 0.15)) { ConnectionStore.shared.moveStarred(dragging, to: target) }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
+    }
+}
+
 private struct StarredItem: View {
     var config: ConnectionConfig
     var isCurrent: Bool
@@ -146,7 +175,7 @@ private struct StarredItem: View {
         .onHover { isHovering = $0 }
         .help(isCurrent
               ? "\(config.displayName) · \(config.environment.displayName) (this window)"
-              : "\(config.displayName) · \(config.environment.displayName)\n\(config.user)@\(config.host):\(config.port)\n\(hint)")
+              : "\(config.displayName) · \(config.environment.displayName)\n\(config.user)@\(config.host):\(config.port)\n\(hint), drag to reorder")
         .accessibilityLabel("\(config.displayName), \(config.environment.displayName)\(isCurrent ? ", current" : "")")
         .accessibilityIdentifier("starred-\(config.displayName)")
     }
