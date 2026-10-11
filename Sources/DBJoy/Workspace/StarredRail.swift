@@ -42,12 +42,16 @@ struct StarredRail: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(starred) { config in
                         StarredItem(config: config, isCurrent: config.id == currentConnectionID, isExpanded: isExpanded,
+                                    isDragged: config.id == dragging,
                                     hint: opensNewWindow ? "⌘-click to open in this window" : "⌘-click to open in a new window") {
                             open(config)
                         }
                         .onDrag {
-                            dragging = config.id
+                            startDragging(config.id)
                             return NSItemProvider(object: config.id.uuidString as NSString)
+                        } preview: {
+                            StarredItem.DragPreview(config: config, isCurrent: config.id == currentConnectionID,
+                                                    isExpanded: isExpanded)
                         }
                         .onDrop(of: [.utf8PlainText, .plainText, .text], delegate: StarredDropDelegate(target: config.id, dragging: $dragging))
                         .accessibilityAction(named: "Move Up") { store.moveStarred(config.id, by: -1) }
@@ -80,6 +84,15 @@ struct StarredRail: View {
         .frame(width: isExpanded ? Self.expandedWidth : Self.collapsedWidth)
         .background(Theme.sidebarBackground)
         .overlay(alignment: .trailing) { Rectangle().fill(Theme.separator).frame(width: 1) }
+    }
+
+    /// Hides the dragged item until the mouse is released, wherever the drop lands (or doesn't).
+    private func startDragging(_ id: UUID) {
+        dragging = id
+        Task { @MainActor in
+            while NSEvent.pressedMouseButtons & 1 != 0 { try? await Task.sleep(for: .milliseconds(50)) }
+            if dragging == id { dragging = nil }
+        }
     }
 
     /// Opens a starred connection in this window or a new one, per the setting; ⌘-click does the opposite.
@@ -140,9 +153,31 @@ private struct StarredItem: View {
     var config: ConnectionConfig
     var isCurrent: Bool
     var isExpanded: Bool
+    var isDragged = false
     var hint: String
     var open: () -> Void
     @State private var isHovering = false
+
+    /// What follows the pointer while dragging: the avatar alone, so it keeps its round shape.
+    struct DragPreview: View {
+        var config: ConnectionConfig
+        var isCurrent: Bool
+        var isExpanded: Bool
+
+        var body: some View {
+            HStack(spacing: 10) {
+                ConnectionAvatar(config: config, size: 32)
+                    .overlay(Circle().strokeBorder(isCurrent ? Theme.accent : .clear, lineWidth: 2).padding(-3))
+                if isExpanded {
+                    Text(config.displayName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(4)
+        }
+    }
 
     // A tap gesture rather than a Button, so the mouse-down isn't swallowed and the item can be dragged.
     var body: some View {
@@ -170,6 +205,9 @@ private struct StarredItem: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(isCurrent && isExpanded ? Theme.accentFill : (isHovering ? Theme.elevated : .clear)))
         .contentShape(Rectangle())
+        // The dragged item leaves a gap rather than showing under the pointer.
+        .opacity(isDragged ? 0 : 1)
+        .onChange(of: isDragged) { isHovering = false }
         .onTapGesture(perform: open)
         .onHover { isHovering = $0 }
         .help(isCurrent
