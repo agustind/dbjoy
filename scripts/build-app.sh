@@ -32,8 +32,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key><string>DBJoy</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.4.1</string>
-    <key>CFBundleVersion</key><string>15</string>
+    <key>CFBundleShortVersionString</key><string>0.4.2</string>
+    <key>CFBundleVersion</key><string>16</string>
     <key>LSMinimumSystemVersion</key><string>15.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
