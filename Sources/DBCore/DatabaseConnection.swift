@@ -62,6 +62,8 @@ public protocol DatabaseConnection: AnyObject, Sendable {
     func foreignKeys(schema: String) async throws -> [ForeignKeyInfo]
     /// Column names per table/view in a schema, for code completion and diagrams.
     func columnsByTable(schema: String) async throws -> [String: [ColumnInfo]]
+    /// Tables, views, routines, types, sequences and triggers in a schema, for schema compare.
+    func schemaSnapshot(schema: String) async throws -> SchemaSnapshot
 
     // MARK: Data
 

@@ -93,6 +93,19 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Open `.sql` files (⌘O, or drag them onto a query tab) and optionally run them right away; Run SQL File… (⇧⌘O)
   opens and runs in one step. psql-only commands such as `\connect` or `\copy` are flagged before anything runs
 
+### Schema compare and migrations
+- Compare a schema between two databases, e.g. development against production (Database → Compare Schemas…, ⇧⌘D):
+  tables, columns, keys, indexes, check constraints, views, materialized views, functions, procedures, triggers,
+  enums, domains, sequences and extensions
+- Each difference shows both definitions side by side and the SQL that migrates it. DBJoy writes the whole migration in
+  an order that runs: types before the tables that use them, drops before creates, foreign keys after the tables
+  they reference, and views dropped and recreated around the column changes that need it
+- Pick which changes to include. Changes that delete data (dropping a table or column) start unchecked and are marked
+  in red; changes that can fail on existing rows (adding NOT NULL, a unique index, a type change) are flagged
+- Copy the script, save it as a `.sql` file, open it in a query tab on the target, or run it there in one
+  transaction (nothing changes if a statement fails), with a confirmation that names the environment
+- Not compared: partitions, grants, policies, and indexes on materialized views
+
 ### Export
 - CSV or JSON (one file per table), or SQL `INSERT`s (one file, ordered by foreign keys, sequences reset)
 - Full restorable backup via `pg_dump` (bundled with the app)
@@ -162,6 +175,7 @@ Run `/mcp` in Claude Code to check that DBJoy is connected.
 | Refresh | ⌘R |
 | Search rows / find in editor | ⌘F |
 | ER diagram | ⇧⌘E |
+| Compare schemas | ⇧⌘D |
 | Export tables | ⌥⌘E |
 | Open SQL file / run SQL file | ⌘O / ⇧⌘O |
 | AI assistant | ⌘J |
@@ -229,6 +243,7 @@ Sources/
                    cancellation, notices) + Postgres introspection and dialect
   DBJoy/           SwiftUI app; AppKit for the data grid (NSTableView) and SQL editor (NSTextView)
     MCP/           local MCP server (Streamable HTTP on 127.0.0.1) for Claude Code and other clients
+    Compare/       schema compare window (the diff and migration SQL live in PostgresDriver)
 ```
 
 To add an engine, implement `DatabaseDriver`, `DatabaseConnection` and `SQLDialect` in a new target, add a

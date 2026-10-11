@@ -147,6 +147,7 @@ final class WorkspaceModel {
             currentSchema = schemas.contains(preferred) ? preferred : (schemas.first ?? preferred)
             phase = .connected
             await reloadObjects()
+            receiveHandoffs()
         } catch {
             let message = (error as? DatabaseError)?.fullDescription ?? error.localizedDescription
             // SSH errors mention passwords too ("Permission denied (publickey,password)"), but
@@ -332,6 +333,20 @@ final class WorkspaceModel {
                                   sql: savedQuery?.sql ?? sql, savedQueryID: savedQuery?.id)
         tabs.append(.query(model))
         selectedTabID = model.id
+    }
+
+    /// Opens SQL sent to this connection from elsewhere (such as a schema migration to review),
+    /// switching to the database it's meant for first.
+    func receiveHandoffs() {
+        guard phase == .connected else { return }
+        let items = QueryHandoff.take(for: config.id)
+        guard !items.isEmpty else { return }
+        if let other = items.first(where: { !$0.database.isEmpty && $0.database != currentDatabase }) {
+            QueryHandoff.putBack(items)
+            switchDatabase(other.database)
+            return
+        }
+        for item in items { newQuery(sql: item.sql, title: item.title) }
     }
 
     // MARK: Assistant

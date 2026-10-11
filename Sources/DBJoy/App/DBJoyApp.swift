@@ -28,6 +28,13 @@ struct DBJoyApp: App {
         .defaultSize(width: 1280, height: 820)
         .commands { AppCommands() }
 
+        WindowGroup("Compare Schemas", id: "compare", for: CompareRequest.self) { $request in
+            SchemaCompareView(request: request ?? CompareRequest())
+        }
+        .defaultSize(width: 1180, height: 760)
+        // Don't reconnect to two databases on launch.
+        .restorationBehavior(.disabled)
+
         Settings {
             SettingsView()
         }
@@ -164,6 +171,11 @@ struct AppCommands: Commands {
             Button("ER Diagram") { workspace?.openDiagram() }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(workspace == nil)
+            Button("Compare Schemas…") {
+                openWindow(id: "compare", value: CompareRequest(sourceID: workspace?.config.id, database: workspace?.currentDatabase,
+                                                                schema: workspace?.currentSchema))
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
 
             Divider()
 

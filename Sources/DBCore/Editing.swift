@@ -276,6 +276,9 @@ public protocol SQLDialect: Sendable {
     /// importing rows with explicit key values.
     func resetSequenceStatements(for structure: TableStructure) -> [String]
 
+    /// What it takes to make `target` look like `source` (schema compare).
+    func schemaChanges(from source: SchemaSnapshot, to target: SchemaSnapshot) -> [SchemaChange]
+
     var keywords: [String] { get }
     var functions: [String] { get }
     var dataTypes: [String] { get }

@@ -38,6 +38,7 @@ struct WorkspaceRoot: View {
         .onDisappear { Task { await model.disconnect() } }
         .navigationTitle(model.windowTitle)
         .focusedSceneValue(\.workspace, model)
+        .onReceive(NotificationCenter.default.publisher(for: QueryHandoff.notification)) { _ in model.receiveHandoffs() }
         .alert("Error", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK") { model.errorMessage = nil }
         } message: {

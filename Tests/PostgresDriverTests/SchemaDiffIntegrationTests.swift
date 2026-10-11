@@ -1,0 +1,188 @@
+import DBCore
+import Foundation
+import PostgresDriver
+import Testing
+
+/// Compares real databases and checks that running the migration leaves nothing to change.
+/// Enable with DBJOY_TEST_PG=1 (creates and drops the dbjoy_diff_* databases).
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["DBJOY_TEST_PG"] != nil), .serialized)
+struct SchemaDiffIntegrationTests {
+    static let env = ProcessInfo.processInfo.environment
+    let config = ConnectionConfig(
+        name: "test", host: "localhost", port: Int(env["DBJOY_TEST_PG_PORT"] ?? "") ?? 55432,
+        user: "postgres", database: "postgres", sslMode: .disable)
+
+    func connect(_ database: String) async throws -> any DatabaseConnection {
+        try await PostgresDriver().connect(config, password: Self.env["DBJOY_TEST_PG_PASSWORD"] ?? "secret", database: database)
+    }
+
+    /// Creates empty databases, then runs each script in the matching one.
+    func makeDatabases(_ scripts: [String: String]) async throws {
+        let admin = try await connect("postgres")
+        for name in scripts.keys {
+            _ = try await admin.query("DROP DATABASE IF EXISTS \(name) WITH (FORCE)")
+            _ = try await admin.query("CREATE DATABASE \(name)")
+        }
+        await admin.close()
+        for (name, script) in scripts where !script.isEmpty {
+            let db = try await connect(name)
+            let result = await db.execute(script, maxRows: 0)
+            await db.close()
+            if let error = result.error { throw error }
+        }
+    }
+
+    func changes(from source: any DatabaseConnection, to target: any DatabaseConnection, schema: String) async throws -> [SchemaChange] {
+        let a = try await source.schemaSnapshot(schema: schema)
+        let b = try await target.schemaSnapshot(schema: schema)
+        return PostgresDialect().schemaChanges(from: a, to: b)
+    }
+
+    /// Migrates the target with every change, then compares again.
+    func migrate(_ sourceName: String, _ targetName: String, schemas: [String]) async throws -> [SchemaChange] {
+        let source = try await connect(sourceName), target = try await connect(targetName)
+        defer { Task { await source.close(); await target.close() } }
+        var all: [SchemaChange] = []
+        for schema in schemas { all += try await changes(from: source, to: target, schema: schema) }
+        let statements = SchemaChange.migration(all)
+        do {
+            try await target.executeInTransaction(statements.map { TransactionStatement($0) })
+        } catch {
+            Issue.record("Migration failed: \(error)\n\(statements.joined(separator: "\n"))")
+            throw error
+        }
+        var remaining: [SchemaChange] = []
+        for schema in schemas { remaining += try await changes(from: source, to: target, schema: schema) }
+        return remaining
+    }
+
+    static let newer = """
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;
+        CREATE TYPE status AS ENUM ('draft', 'active', 'paused', 'archived');
+        CREATE DOMAIN email AS text CHECK (VALUE ~ '@');
+        CREATE TABLE accounts (
+          id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+          email email NOT NULL UNIQUE,
+          name varchar(200) NOT NULL,
+          status status NOT NULL DEFAULT 'active',
+          created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz
+        );
+        COMMENT ON TABLE accounts IS 'People who sign in';
+        COMMENT ON COLUMN accounts.email IS 'Login email';
+        CREATE TABLE projects (
+          id serial PRIMARY KEY,
+          account_id bigint NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+          title text NOT NULL CHECK (length(title) > 0),
+          budget numeric(12, 2),
+          budget_with_tax numeric GENERATED ALWAYS AS (budget * 1.2) STORED
+        );
+        CREATE INDEX projects_account_idx ON projects (account_id);
+        CREATE TABLE tasks (
+          id serial PRIMARY KEY,
+          project_id int NOT NULL REFERENCES projects (id),
+          parent_id int REFERENCES tasks (id),
+          done boolean NOT NULL DEFAULT false
+        );
+        CREATE SEQUENCE invoice_numbers START 1000;
+        CREATE FUNCTION touch() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at := now(); RETURN NEW; END $$;
+        CREATE TRIGGER accounts_touch BEFORE UPDATE ON accounts FOR EACH ROW EXECUTE FUNCTION touch();
+        CREATE TRIGGER tasks_touch BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION touch();
+        CREATE VIEW active_accounts AS SELECT id, email FROM accounts WHERE status = 'active';
+        CREATE VIEW active_account_emails AS SELECT email FROM active_accounts;
+        CREATE MATERIALIZED VIEW project_counts AS SELECT account_id, count(*) AS n FROM projects GROUP BY account_id;
+        """
+
+    static let older = """
+        CREATE TYPE status AS ENUM ('draft', 'active', 'archived');
+        CREATE TABLE accounts (
+          id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+          email text NOT NULL,
+          name text,
+          status status NOT NULL DEFAULT 'draft',
+          legacy_flag boolean,
+          updated_at timestamptz
+        );
+        INSERT INTO accounts (email, name) VALUES ('ada@example.com', 'Ada');
+        CREATE TABLE projects (
+          id serial PRIMARY KEY,
+          account_id bigint NOT NULL REFERENCES accounts (id),
+          title text NOT NULL,
+          budget numeric(12, 2),
+          budget_with_tax numeric GENERATED ALWAYS AS (budget * 1.1) STORED
+        );
+        CREATE INDEX projects_by_account ON projects (account_id);
+        CREATE INDEX projects_title_idx ON projects (title);
+        CREATE TABLE old_audit (id int);
+        CREATE SEQUENCE old_numbers;
+        CREATE FUNCTION touch() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$;
+        CREATE FUNCTION unused(x int) RETURNS int LANGUAGE sql AS 'SELECT x';
+        CREATE TRIGGER old_audit_touch BEFORE UPDATE ON old_audit FOR EACH ROW EXECUTE FUNCTION touch();
+        CREATE VIEW active_accounts AS SELECT id FROM accounts WHERE status = 'active';
+        CREATE VIEW old_view AS SELECT * FROM old_audit;
+        CREATE MATERIALIZED VIEW project_counts AS SELECT account_id FROM projects;
+        """
+
+    @Test func reportsWhatDiffers() async throws {
+        try await makeDatabases(["dbjoy_diff_source": Self.newer, "dbjoy_diff_target": Self.older])
+        let source = try await connect("dbjoy_diff_source"), target = try await connect("dbjoy_diff_target")
+        defer { Task { await source.close(); await target.close() } }
+        let changes = try await changes(from: source, to: target, schema: "public")
+        let byID = Dictionary(changes.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+
+        #expect(byID["extension:pgcrypto"]?.kind == .added)
+        #expect(byID["enum:status"]?.steps.map(\.sql) == [#"ALTER TYPE "public"."status" ADD VALUE 'paused' AFTER 'active';"#])
+        #expect(byID["domain:email"]?.kind == .added)
+        #expect(byID["table:tasks"]?.kind == .added)
+        #expect(byID["table:old_audit"]?.isDestructive == true)
+        #expect(byID["table:accounts/column:legacy_flag"]?.isDestructive == true)
+        #expect(byID["table:accounts/column:created_at"]?.kind == .added)
+        #expect(byID["table:accounts/column:name"]?.summary == "Type text → character varying(200); NOT NULL added")
+        #expect(byID["table:accounts/column:id"]?.steps.map(\.sql).first?.hasSuffix("SET GENERATED ALWAYS;") == true)
+        // Rebuilding a generated column loses nothing.
+        #expect(byID["table:projects/column:budget_with_tax"]?.isDestructive == false)
+        #expect(byID["table:projects/constraint:projects_account_id_fkey"]?.kind == .changed)
+        // Same index under another name isn't a difference; an extra index is.
+        #expect(byID["table:projects/index:projects_account_idx"] == nil)
+        #expect(byID["table:projects/index:projects_title_idx"]?.kind == .removed)
+        #expect(byID["sequence:invoice_numbers"]?.kind == .added)
+        #expect(byID["sequence:old_numbers"]?.kind == .removed)
+        // Serial sequences and triggers come with their table.
+        #expect(byID["sequence:tasks_id_seq"] == nil)
+        #expect(byID["trigger:tasks.tasks_touch"] == nil)
+        #expect(byID["trigger:old_audit.old_audit_touch"] == nil)
+        #expect(byID["trigger:accounts.accounts_touch"]?.kind == .added)
+        #expect(byID["routine:touch()"]?.kind == .changed)
+        #expect(byID["routine:unused(x integer)"]?.kind == .removed)
+        #expect(byID["view:active_accounts"]?.kind == .changed)
+        #expect(byID["view:active_account_emails"]?.kind == .added)
+        #expect(byID["view:old_view"]?.kind == .removed)
+        #expect(byID["view:project_counts"]?.steps.count == 2)
+    }
+
+    @Test func migrationMakesTargetMatch() async throws {
+        try await makeDatabases(["dbjoy_diff_source": Self.newer, "dbjoy_diff_target": Self.older])
+        let remaining = try await migrate("dbjoy_diff_source", "dbjoy_diff_target", schemas: ["public"])
+        #expect(remaining.map(\.id) == [])
+    }
+
+    @Test func migrationCanGoBack() async throws {
+        // Downgrading drops what's new; only the enum value Postgres can't remove stays behind.
+        try await makeDatabases(["dbjoy_diff_source": Self.older, "dbjoy_diff_target": Self.newer])
+        let remaining = try await migrate("dbjoy_diff_source", "dbjoy_diff_target", schemas: ["public"])
+        #expect(remaining.map(\.id) == ["enum:status"])
+        #expect(remaining.first?.steps.isEmpty == true)
+    }
+
+    @Test func copiesTheSampleDatabaseIntoAnEmptyOne() async throws {
+        try await makeDatabases(["dbjoy_diff_target": ""])
+        let remaining = try await migrate("dbjoy_sample", "dbjoy_diff_target", schemas: ["public", "sales"])
+        #expect(remaining.map(\.id) == [])
+    }
+
+    @Test func emptiesADatabase() async throws {
+        try await makeDatabases(["dbjoy_diff_source": "", "dbjoy_diff_target": Self.newer])
+        let remaining = try await migrate("dbjoy_diff_source", "dbjoy_diff_target", schemas: ["public"])
+        #expect(remaining.map(\.id) == [])
+    }
+}

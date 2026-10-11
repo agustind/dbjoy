@@ -9,6 +9,7 @@ struct GenericDialect: SQLDialect {
     func statements(for request: CreateTableRequest) -> [String] { [] }
     func dropStatement(for ref: ObjectRef, cascade: Bool) -> String { "" }
     func truncateStatement(for ref: ObjectRef, cascade: Bool) -> String { "" }
+    func schemaChanges(from source: SchemaSnapshot, to target: SchemaSnapshot) -> [SchemaChange] { [] }
     var keywords: [String] { [] }
     var functions: [String] { [] }
     var dataTypes: [String] { [] }
