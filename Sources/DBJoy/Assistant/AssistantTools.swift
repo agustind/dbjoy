@@ -84,7 +84,22 @@ enum AssistantTools {
         return nil
     }
 
+    /// The table or view called `name` among `objects`, matched exactly first and then ignoring case.
+    static func table(named name: String, in objects: [SchemaObject]) -> SchemaObject? {
+        objects.first { $0.name == name && $0.kind.hasRows }
+            ?? objects.first { $0.name.lowercased() == name.lowercased() && $0.kind.hasRows }
+    }
+
     // MARK: Formatting for the model
+
+    /// One line per object: name, kind and comment.
+    static func describe(_ objects: [SchemaObject]) -> String {
+        objects.map { object in
+            var line = "\(object.name) (\(object.kind.displayName.lowercased()))"
+            if let comment = object.comment, !comment.isEmpty { line += " -- \(comment)" }
+            return line
+        }.joined(separator: "\n")
+    }
 
     static let maxRowsForModel = 100
     private static let maxCellLength = 300

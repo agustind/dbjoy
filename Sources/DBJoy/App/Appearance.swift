@@ -38,6 +38,8 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             AssistantSettingsView()
                 .tabItem { Label("AI Assistant", systemImage: "sparkles") }
+            MCPSettingsView()
+                .tabItem { Label("MCP", systemImage: "point.3.connected.trianglepath.dotted") }
         }
         .tint(Theme.accent)
     }

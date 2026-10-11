@@ -140,6 +140,7 @@ struct ConnectionFormView: View {
                 }
                 Section("Safety") {
                     Toggle("Read-only (enforced by the server)", isOn: $config.readOnly)
+                    Toggle("Share with MCP clients such as Claude Code (read-only)", isOn: $config.allowsMCP)
                     if config.environment.requiresWriteConfirmation {
                         Label("Writes on production connections always ask for confirmation.", systemImage: "exclamationmark.shield")
                             .font(.caption)

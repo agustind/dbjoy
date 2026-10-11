@@ -124,6 +124,8 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
     public var ssh: SSHTunnelConfig
     /// Extra driver-specific connection options (e.g. libpq keywords).
     public var options: [String: String]
+    /// Reachable, read-only, by MCP clients such as Claude Code through DBJoy's local MCP server.
+    public var allowsMCP: Bool
 
     public init(
         id: UUID = UUID(),
@@ -141,7 +143,8 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
         isStarred: Bool = false,
         icon: String? = nil,
         ssh: SSHTunnelConfig = SSHTunnelConfig(),
-        options: [String: String] = [:]
+        options: [String: String] = [:],
+        allowsMCP: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -159,6 +162,7 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
         self.icon = icon
         self.ssh = ssh
         self.options = options
+        self.allowsMCP = allowsMCP
     }
 
     public init(from decoder: Decoder) throws {
@@ -180,7 +184,8 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
             isStarred: try c.decodeIfPresent(Bool.self, forKey: .isStarred) ?? false,
             icon: try c.decodeIfPresent(String.self, forKey: .icon),
             ssh: try c.decodeIfPresent(SSHTunnelConfig.self, forKey: .ssh) ?? SSHTunnelConfig(),
-            options: try c.decodeIfPresent([String: String].self, forKey: .options) ?? [:]
+            options: try c.decodeIfPresent([String: String].self, forKey: .options) ?? [:],
+            allowsMCP: try c.decodeIfPresent(Bool.self, forKey: .allowsMCP) ?? false
         )
     }
 

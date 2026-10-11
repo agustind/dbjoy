@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Needed when launched as a bare executable (swift run) rather than an .app bundle.
         NSApp.setActivationPolicy(.regular)
         AppearanceMode.current.apply()
+        MCPServer.shared.applySettings()
         NSApp.activate()
     }
 

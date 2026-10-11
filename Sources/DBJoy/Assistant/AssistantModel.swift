@@ -230,11 +230,7 @@ final class AssistantModel {
                 let objects = try await browsing.listObjects(schema: schema)
                 step.state = .done
                 if objects.isEmpty { return ToolOutput(callID: call.id, content: "No objects in schema \(schema).") }
-                return ToolOutput(callID: call.id, content: objects.map { object in
-                    var line = "\(object.name) (\(object.kind.displayName.lowercased()))"
-                    if let comment = object.comment, !comment.isEmpty { line += " -- \(comment)" }
-                    return line
-                }.joined(separator: "\n"))
+                return ToolOutput(callID: call.id, content: AssistantTools.describe(objects))
             } catch {
                 return failStep(step, call, error)
             }
@@ -245,8 +241,7 @@ final class AssistantModel {
             let step = addStep("Looked at \(table)")
             do {
                 let objects = try await browsing.listObjects(schema: schema)
-                guard let object = objects.first(where: { $0.name == table && $0.kind.hasRows })
-                    ?? objects.first(where: { $0.name.lowercased() == table.lowercased() && $0.kind.hasRows }) else {
+                guard let object = AssistantTools.table(named: table, in: objects) else {
                     step.state = .failed
                     step.error = "No table \(schema).\(table)"
                     return fail("No table or view named \(table) in schema \(schema). Use list_tables to see what exists.")

@@ -40,6 +40,11 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
   let it run INSERT/UPDATE/DELETE and schema changes, each in one transaction, with an approval step before each change
   (always on production connections; never on read-only connections)
 
+### Claude Code and other MCP clients
+- Ask Claude Code about your data from any project: DBJoy shares the connections you choose over MCP, so Claude Code
+  can look up tables and run read-only queries with DBJoy's saved passwords and SSH tunnels.
+  See [Use DBJoy from Claude Code](#use-dbjoy-from-claude-code)
+
 ### Connections
 - Saved connections grouped into folders and tagged by environment: local, development, testing, staging, production
 - Paste a connection string (`postgres://user:pass@host:5432/db?sslmode=require` or `host=… dbname=…`) to fill in a
@@ -95,6 +100,53 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 
 ### Appearance
 - Light and dark themes; follows the system by default, or pick one in **View → Appearance** or Settings (⌘,)
+
+## Use DBJoy from Claude Code
+
+When you work on a project with [Claude Code](https://claude.com/claude-code), it can query that project's database
+through DBJoy. Ask "how many schools do we have?" from the terminal, and Claude Code finds the connection in DBJoy,
+checks the tables and runs the query itself. You don't copy credentials into the project: DBJoy connects with the
+password in your Keychain and any SSH tunnel you set up, and the shared connections are read-only.
+
+### Set it up
+1. In DBJoy, open **Settings → MCP** and turn on **Let MCP clients read your databases**.
+2. Under **Shared connections**, turn on the connections Claude Code may use (or use **Share with MCP clients** in a
+   connection's Safety section). Every connection starts unshared, and clients never see the others.
+3. Click **Copy Command** and run it once in Terminal. It registers DBJoy for all your projects:
+   ```sh
+   claude mcp add --transport http --scope user dbjoy http://127.0.0.1:47821/mcp \
+     --header "Authorization: Bearer <token>"
+   ```
+4. In each project's `CLAUDE.md`, say which connection it uses:
+   ```markdown
+   The database is the DBJoy connection "Andromeda (dev)".
+   ```
+
+Then ask away in that project: "how many schools signed up this month?", "which tables reference students?".
+Run `/mcp` in Claude Code to check that DBJoy is connected.
+
+### What Claude Code can do
+| Tool | What it does |
+|---|---|
+| `list_connections` | Lists the shared connections with their environment and database |
+| `list_tables` | Lists a schema's tables, views and routines, and the other schemas |
+| `describe_table` | Shows columns, keys, indexes, constraints and foreign keys |
+| `run_query` | Runs SELECT, WITH, EXPLAIN, SHOW or VALUES and returns the first 100 rows |
+
+### Safety
+- **Read-only.** Statements other than reads are refused, and every query runs in a read-only transaction, which
+  also stops writes hidden in CTEs or functions. Queries time out after 30 seconds.
+- **Local only.** The server listens on 127.0.0.1, so nothing else on your network can reach it. Each request needs
+  the token, and requests from web pages on other sites are rejected.
+- **You see what ran.** **Settings → MCP → Recent activity** lists each request: client, connection and SQL.
+- **Revocable.** Turn off a connection to hide it, or click **Reset Token…** to disconnect every client.
+
+### Good to know
+- DBJoy has to be open. It doesn't need a window open for that connection.
+- A connection must save its password in DBJoy, because DBJoy can't ask for one on a client's behalf.
+- If port 47821 is taken, change it in Settings → MCP and copy the command again.
+- Other MCP clients (such as Cursor) work the same way. Point them at `http://127.0.0.1:47821/mcp` (Streamable HTTP)
+  with the header `Authorization: Bearer <token>`; **Copy Token** copies the token.
 
 ## Keyboard shortcuts
 
@@ -176,6 +228,7 @@ Sources/
   PostgresDriver/  libpq wrapper (serial queue per connection, single-row streaming,
                    cancellation, notices) + Postgres introspection and dialect
   DBJoy/           SwiftUI app; AppKit for the data grid (NSTableView) and SQL editor (NSTextView)
+    MCP/           local MCP server (Streamable HTTP on 127.0.0.1) for Claude Code and other clients
 ```
 
 To add an engine, implement `DatabaseDriver`, `DatabaseConnection` and `SQLDialect` in a new target, add a
