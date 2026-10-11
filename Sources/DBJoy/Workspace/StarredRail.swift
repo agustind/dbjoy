@@ -1,6 +1,7 @@
 import AppKit
 import DBCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Collapsible bar on the far left of a workspace window listing starred connections.
 /// One click opens a connection, or brings its window forward if it's already open.
@@ -53,7 +54,7 @@ struct StarredRail: View {
                             StarredItem.DragPreview(config: config, isCurrent: config.id == currentConnectionID,
                                                     isExpanded: isExpanded)
                         }
-                        .onDrop(of: [.utf8PlainText, .plainText, .text], delegate: StarredDropDelegate(target: config.id, dragging: $dragging))
+                        .onDrop(of: StarredDropDelegate.types, delegate: StarredDropDelegate(target: config.id, dragging: $dragging))
                         .accessibilityAction(named: "Move Up") { store.moveStarred(config.id, by: -1) }
                         .accessibilityAction(named: "Move Down") { store.moveStarred(config.id, by: 1) }
                     }
@@ -82,6 +83,10 @@ struct StarredRail: View {
         }
         .padding(.horizontal, 8)
         .frame(width: isExpanded ? Self.expandedWidth : Self.collapsedWidth)
+        // Dropping anywhere on the bar (between items, on the header) ends the drag there; otherwise
+        // macOS treats it as cancelled and slides the drag image back to where it started.
+        .contentShape(Rectangle())
+        .onDrop(of: StarredDropDelegate.types, delegate: StarredDropDelegate(target: nil, dragging: $dragging))
         .background(Theme.sidebarBackground)
         .overlay(alignment: .trailing) { Rectangle().fill(Theme.separator).frame(width: 1) }
     }
@@ -131,13 +136,15 @@ struct StarredRail: View {
 
 /// Reorders the bar live as a dragged connection passes over the others.
 private struct StarredDropDelegate: DropDelegate {
-    var target: UUID
+    static let types: [UTType] = [.utf8PlainText, .plainText, .text]
+    /// The item dropped on, or `nil` for the bar itself.
+    var target: UUID?
     @Binding var dragging: UUID?
 
     func validateDrop(info: DropInfo) -> Bool { dragging != nil }
 
     func dropEntered(info: DropInfo) {
-        guard let dragging, dragging != target else { return }
+        guard let dragging, let target, dragging != target else { return }
         withAnimation(.easeInOut(duration: 0.15)) { ConnectionStore.shared.moveStarred(dragging, to: target) }
     }
 
