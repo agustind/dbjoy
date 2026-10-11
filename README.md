@@ -15,7 +15,7 @@ data safely, write SQL and export, all in a fast, keyboard-friendly SwiftUI app.
 as drivers.
 
 <p align="center">
-  <img src="screenshot.png" alt="DBJoy's AI assistant answering which categories brought in the most revenue, next to the products table" width="720">
+  <img src="demo.gif" alt="DBJoy tour: color-coded connections, browsing the products table, the AI assistant answering which countries bring in the most revenue, the assistant writing a top-customers query that runs in a tab, the ER diagram, and Claude Code's queries in Settings → MCP" width="880">
 </p>
 
 ## Install
