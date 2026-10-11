@@ -49,7 +49,7 @@ struct StarredRail: View {
                             dragging = config.id
                             return NSItemProvider(object: config.id.uuidString as NSString)
                         }
-                        .onDrop(of: [.text], delegate: StarredDropDelegate(target: config.id, dragging: $dragging))
+                        .onDrop(of: [.utf8PlainText, .plainText, .text], delegate: StarredDropDelegate(target: config.id, dragging: $dragging))
                         .accessibilityAction(named: "Move Up") { store.moveStarred(config.id, by: -1) }
                         .accessibilityAction(named: "Move Down") { store.moveStarred(config.id, by: 1) }
                     }
@@ -144,38 +144,40 @@ private struct StarredItem: View {
     var open: () -> Void
     @State private var isHovering = false
 
+    // A tap gesture rather than a Button, so the mouse-down isn't swallowed and the item can be dragged.
     var body: some View {
-        Button(action: open) {
-            HStack(spacing: 10) {
-                ConnectionAvatar(config: config, size: 32)
-                .overlay(Circle().strokeBorder(isCurrent ? Theme.accent : .clear, lineWidth: 2).padding(-3))
-                if isExpanded {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(config.displayName)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(isCurrent ? Theme.accentText : Theme.textPrimary)
-                            .lineLimit(1)
-                        Text(config.host.isEmpty ? "localhost" : config.host)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.textTertiary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    Spacer(minLength: 0)
+        HStack(spacing: 10) {
+            ConnectionAvatar(config: config, size: 32)
+            .overlay(Circle().strokeBorder(isCurrent ? Theme.accent : .clear, lineWidth: 2).padding(-3))
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(config.displayName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isCurrent ? Theme.accentText : Theme.textPrimary)
+                        .lineLimit(1)
+                    Text(config.host.isEmpty ? "localhost" : config.host)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.textTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
+                Spacer(minLength: 0)
             }
-            .padding(isExpanded ? 6 : 4)
-            .frame(maxWidth: .infinity, alignment: isExpanded ? .leading : .center)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isCurrent && isExpanded ? Theme.accentFill : (isHovering ? Theme.elevated : .clear)))
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .padding(isExpanded ? 6 : 4)
+        .frame(maxWidth: .infinity, alignment: isExpanded ? .leading : .center)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isCurrent && isExpanded ? Theme.accentFill : (isHovering ? Theme.elevated : .clear)))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: open)
         .onHover { isHovering = $0 }
         .help(isCurrent
               ? "\(config.displayName) · \(config.environment.displayName) (this window)"
               : "\(config.displayName) · \(config.environment.displayName)\n\(config.user)@\(config.host):\(config.port)\n\(hint), drag to reorder")
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { open() }
         .accessibilityLabel("\(config.displayName), \(config.environment.displayName)\(isCurrent ? ", current" : "")")
         .accessibilityIdentifier("starred-\(config.displayName)")
     }
