@@ -66,7 +66,7 @@ struct DatabaseCopierTests {
 
     func copy(from source: PostgresToolEndpoint, options: DatabaseCopier.Options = .init()) async throws -> [String] {
         let steps = Steps()
-        try await DatabaseCopier().run(from: source, to: endpoint(Self.target), recreatePublicSchema: true,
+        try await DatabaseCopier().run(from: source, to: endpoint(Self.target), plan: .init(),
                                        options: options) { steps.append($0.step) }
         return steps.all
     }
@@ -115,7 +115,7 @@ struct DatabaseCopierTests {
         // Every statement on the target fails, starting with the first DROP SCHEMA.
         let readOnly = endpoint(Self.target, environment: ["PGOPTIONS": "-c default_transaction_read_only=on"])
         do {
-            try await DatabaseCopier().run(from: endpoint("dbjoy_sample"), to: readOnly, recreatePublicSchema: true,
+            try await DatabaseCopier().run(from: endpoint("dbjoy_sample"), to: readOnly, plan: .init(),
                                            options: .init()) { _ in }
             Issue.record("The copy should have failed")
         } catch let error as DatabaseError {
@@ -132,7 +132,7 @@ struct DatabaseCopierTests {
         _ = try await blocker.query("BEGIN")
         _ = try await blocker.query("LOCK TABLE junk.t")
         let copy = Task {
-            try await DatabaseCopier().run(from: endpoint("dbjoy_sample"), to: endpoint(Self.target), recreatePublicSchema: true,
+            try await DatabaseCopier().run(from: endpoint("dbjoy_sample"), to: endpoint(Self.target), plan: .init(),
                                            options: .init()) { _ in }
         }
         try await Task.sleep(for: .seconds(1))
@@ -143,6 +143,60 @@ struct DatabaseCopierTests {
         _ = try await blocker.query("ROLLBACK")
         await blocker.close()
         #expect(try await fingerprint(Self.target) == before)
+    }
+
+    /// Like a managed service: the connection's user isn't a superuser, and the target holds a schema
+    /// and an extension that belong to other roles.
+    @Test func leavesOtherRolesSchemasAlone() async throws {
+        let admin = try await connect("postgres")
+        for sql in ["DROP DATABASE IF EXISTS \(Self.target) WITH (FORCE)",
+                    "DO $$ BEGIN CREATE ROLE dbjoy_copier LOGIN PASSWORD 'secret'; EXCEPTION WHEN duplicate_object THEN NULL; END $$",
+                    "DO $$ BEGIN CREATE ROLE dbjoy_platform; EXCEPTION WHEN duplicate_object THEN NULL; END $$",
+                    "CREATE DATABASE \(Self.target) OWNER dbjoy_copier"] {
+            _ = try await admin.query(sql)
+        }
+        await admin.close()
+        let superuser = try await connect(Self.target)
+        for sql in ["CREATE SCHEMA platform AUTHORIZATION dbjoy_platform",
+                    "CREATE TABLE platform.settings (key text)",
+                    "ALTER TABLE platform.settings OWNER TO dbjoy_platform",
+                    "CREATE SCHEMA tools AUTHORIZATION dbjoy_copier",
+                    "CREATE EXTENSION pgcrypto SCHEMA tools",
+                    "CREATE SCHEMA junk AUTHORIZATION dbjoy_copier"] {
+            _ = try await superuser.query(sql)
+        }
+        await superuser.close()
+
+        let config = ConnectionConfig(name: "copier", host: "localhost", port: Self.port, user: "dbjoy_copier",
+                                      database: Self.target, sslMode: .disable)
+        let target = try await PostgresDriver().connect(config, password: "secret", database: nil)
+        let source = try await connect("dbjoy_sample")
+        let plan = try await DatabaseCopier.plan(source: source, target: target)
+        await target.close()
+        await source.close()
+        #expect(plan.skippedSchemaNames == ["platform", "tools"])
+        #expect(plan.skippedExtensions == ["pgcrypto"])
+
+        let copier = PostgresToolEndpoint(host: "localhost", port: Self.port, user: "dbjoy_copier", database: Self.target,
+                                          environment: ["PGPASSWORD": "secret", "PGSSLMODE": "disable"])
+        try await DatabaseCopier().run(from: endpoint("dbjoy_sample"), to: copier, plan: plan, options: .init()) { _ in }
+
+        let copied = try await fingerprint(Self.target)
+        #expect(copied.contains("schema platform"))
+        #expect(copied.contains("r platform.settings rows=0"))
+        #expect(copied.contains("schema tools"))
+        #expect(!copied.contains("schema junk"))
+        let skipped = ["platform", "tools"]
+        let isSkipped = { (line: String) in skipped.contains { line.contains(" \($0)") || line.contains(" \($0).") } }
+        #expect(copied.filter { !isSkipped($0) } == (try await fingerprint("dbjoy_sample")))
+    }
+
+    @Test func exclusionsAreQuotedLiterally() {
+        var plan = DatabaseCopier.Plan()
+        plan.skippedSchemas = [.init(schema: "Auth*", reason: "")]
+        plan.skippedExtensions = ["pg_stat_statements"]
+        #expect(DatabaseCopier.exclusionArguments(plan) == ["--exclude-schema=\"Auth*\"", "--exclude-extension=\"pg_stat_statements\""])
+        #expect(DatabaseCopier.wipeScript(plan).contains("AND nspname NOT IN ('Auth*')"))
     }
 
     @Test func errorDetailDropsPsqlPrefixes() {

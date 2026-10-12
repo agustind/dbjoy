@@ -137,9 +137,12 @@ struct CopyDatabaseView: View {
                     .buttonStyle(.outline)
                     .help("Stop the copy. The target isn't changed.")
             } else {
-                Button("Copy to Target…") { isConfirming = true }
-                    .buttonStyle(.primary)
-                    .disabled(!model.canCopy)
+                if model.isPlanning { ProgressView().controlSize(.small) }
+                Button("Copy to Target…") {
+                    Task { if await model.preparePlan() { isConfirming = true } }
+                }
+                .buttonStyle(.primary)
+                .disabled(!model.canCopy || model.isPlanning)
                     .accessibilityIdentifier("copy-start")
             }
         }
@@ -164,6 +167,9 @@ private struct ConfirmCopySheet: View {
             }
             Text("Everything in \(model.target.database) is deleted and replaced with a copy of \(model.source.database) from \(model.source.config?.displayName ?? "the source")\(model.includeData ? "" : ", without its data").")
                 .fixedSize(horizontal: false, vertical: true)
+            if !model.plan.skippedSchemas.isEmpty || !model.plan.skippedExtensions.isEmpty {
+                skipped
+            }
             Text("Type \(model.target.database) to confirm.")
                 .foregroundStyle(Theme.textSecondary)
             TextField(model.target.database, text: $typed)
@@ -184,6 +190,24 @@ private struct ConfirmCopySheet: View {
         }
         .padding(20)
         .frame(width: 460)
+    }
+
+    /// Schemas and extensions the copy can't replace, as reported by the plan.
+    private var skipped: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Left as they are")
+                .font(.callout.weight(.semibold))
+            ForEach(model.plan.skippedSchemas, id: \.schema) { item in
+                Text("• \(item.schema): \(item.reason)")
+            }
+            if !model.plan.skippedExtensions.isEmpty {
+                Text("• Extensions owned by another role: \(model.plan.skippedExtensions.joined(separator: ", "))")
+            }
+        }
+        .font(.callout)
+        .foregroundStyle(Theme.textSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("copy-skipped")
     }
 
     private func confirm() {

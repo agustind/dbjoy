@@ -56,8 +56,72 @@ final class DatabaseCopier: @unchecked Sendable {
     private var running: [Process] = []
     private var isCancelled = false
 
-    /// SQL that runs before the copy: drops every schema (with everything in it) and large object.
-    static func wipeScript(recreatePublicSchema: Bool) -> String {
+    /// What the copy leaves alone. Managed services (Supabase, RDS, …) keep schemas and extensions
+    /// owned by their own roles, which the connection's user can neither drop nor recreate.
+    struct Plan: Sendable, Equatable {
+        struct Skipped: Sendable, Equatable {
+            var schema: String
+            var reason: String
+        }
+
+        /// Schemas left as they are in the target and left out of the copy.
+        var skippedSchemas: [Skipped] = []
+        /// Extensions in the target owned by other roles: left as they are and left out of the copy.
+        var skippedExtensions: [String] = []
+        /// Whether the source has a public schema. pg_dump never creates it, so the wipe does.
+        var sourceHasPublicSchema = true
+
+        var skippedSchemaNames: [String] { skippedSchemas.map(\.schema) }
+    }
+
+    /// Schemas whose owner, or anything inside them, belongs to a role the current user isn't a
+    /// member of. DROP SCHEMA … CASCADE fails on those.
+    static let undroppableSchemasQuery = """
+        SELECT n.nspname FROM pg_namespace n
+        WHERE n.nspname <> 'information_schema' AND n.nspname !~ '^pg_'
+          AND (NOT pg_has_role(n.nspowner, 'MEMBER')
+            OR EXISTS (SELECT 1 FROM pg_class c WHERE c.relnamespace = n.oid AND NOT pg_has_role(c.relowner, 'MEMBER'))
+            OR EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = n.oid AND NOT pg_has_role(p.proowner, 'MEMBER'))
+            OR EXISTS (SELECT 1 FROM pg_type t WHERE t.typnamespace = n.oid AND NOT pg_has_role(t.typowner, 'MEMBER'))
+            OR EXISTS (SELECT 1 FROM pg_extension e WHERE e.extnamespace = n.oid AND NOT pg_has_role(e.extowner, 'MEMBER')))
+        ORDER BY 1
+        """
+
+    static let foreignExtensionsQuery = """
+        SELECT extname FROM pg_extension WHERE extname <> 'plpgsql' AND NOT pg_has_role(extowner, 'MEMBER') ORDER BY 1
+        """
+
+    /// Schemas pg_dump can't read: no USAGE, or a table or sequence without SELECT.
+    static let unreadableSchemasQuery = """
+        SELECT n.nspname FROM pg_namespace n
+        WHERE n.nspname <> 'information_schema' AND n.nspname !~ '^pg_'
+          AND (NOT has_schema_privilege(n.oid, 'USAGE')
+            OR EXISTS (SELECT 1 FROM pg_class c WHERE c.relnamespace = n.oid AND c.relkind IN ('r', 'p', 'm', 'S')
+                       AND NOT has_table_privilege(c.oid, 'SELECT')))
+        ORDER BY 1
+        """
+
+    static func plan(source: any DatabaseConnection, target: any DatabaseConnection) async throws -> Plan {
+        let names: (any DatabaseConnection, String) async throws -> [String] = { db, sql in
+            try await db.query(sql).rows.compactMap { $0.first ?? nil }
+        }
+        let undroppable = try await names(target, undroppableSchemasQuery)
+        let unreadable = try await names(source, unreadableSchemasQuery)
+        var plan = Plan()
+        for schema in Set(undroppable + unreadable).sorted() {
+            plan.skippedSchemas.append(.init(schema: schema, reason: undroppable.contains(schema)
+                ? "belongs to another role in the target" : "isn't readable in the source"))
+        }
+        plan.skippedExtensions = try await names(target, foreignExtensionsQuery)
+        plan.sourceHasPublicSchema = try await source.listSchemas().contains("public")
+        return plan
+    }
+
+    /// SQL that runs before the copy: drops every schema (with everything in it) and large object
+    /// that the plan doesn't skip.
+    static func wipeScript(_ plan: Plan) -> String {
+        let kept = plan.skippedSchemaNames.map { "'" + $0.replacingOccurrences(of: "'", with: "''") + "'" }
+        let keep = kept.isEmpty ? "" : " AND nspname NOT IN (\(kept.joined(separator: ", ")))"
         var lines = [
             "-- DBJoy: delete everything in the target before loading the copy.",
             "SET client_min_messages = warning;",
@@ -66,13 +130,13 @@ final class DatabaseCopier: @unchecked Sendable {
             "DO $dbjoy$",
             "DECLARE s name;",
             "BEGIN",
-            "  FOR s IN SELECT nspname FROM pg_namespace WHERE nspname <> 'information_schema' AND nspname !~ '^pg_' LOOP",
+            "  FOR s IN SELECT nspname FROM pg_namespace WHERE nspname <> 'information_schema' AND nspname !~ '^pg_'\(keep) LOOP",
             "    EXECUTE format('DROP SCHEMA %I CASCADE', s);",
             "  END LOOP;",
-            "  PERFORM lo_unlink(oid) FROM pg_largeobject_metadata;",
+            "  PERFORM lo_unlink(oid) FROM pg_largeobject_metadata WHERE pg_has_role(lomowner, 'MEMBER');",
             "END $dbjoy$;",
         ]
-        if recreatePublicSchema {
+        if plan.sourceHasPublicSchema, !plan.skippedSchemaNames.contains("public") {
             // pg_dump leaves out the public schema, which every database starts with. Recreate it
             // the way CREATE DATABASE makes it (owned by pg_database_owner since PostgreSQL 15).
             lines += [
@@ -91,14 +155,22 @@ final class DatabaseCopier: @unchecked Sendable {
         return lines.joined(separator: "\n") + "\n\n"
     }
 
-    func run(from source: PostgresToolEndpoint, to target: PostgresToolEndpoint, recreatePublicSchema: Bool,
+    /// pg_dump arguments that leave out what the plan skips. Names are quoted so pg_dump takes them
+    /// literally rather than as patterns.
+    static func exclusionArguments(_ plan: Plan) -> [String] {
+        let quoted = { (name: String) in "\"" + name.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
+        return plan.skippedSchemaNames.map { "--exclude-schema=" + quoted($0) }
+            + plan.skippedExtensions.map { "--exclude-extension=" + quoted($0) }
+    }
+
+    func run(from source: PostgresToolEndpoint, to target: PostgresToolEndpoint, plan: Plan,
              options: Options, progress: @escaping @Sendable (Progress) -> Void) async throws {
         guard let pgDump = BundledTools.postgres("pg_dump"), let psql = BundledTools.postgres("psql") else {
             throw DatabaseError("pg_dump and psql weren't found. Install them with: brew install libpq")
         }
         try await withTaskCancellationHandler {
-            try await copy(pgDump: pgDump, psql: psql, source: source, target: target,
-                           recreatePublicSchema: recreatePublicSchema, options: options, progress: progress)
+            try await copy(pgDump: pgDump, psql: psql, source: source, target: target, plan: plan, options: options,
+                           progress: progress)
         } onCancel: {
             cancel()
         }
@@ -125,13 +197,14 @@ final class DatabaseCopier: @unchecked Sendable {
     }
 
     private func copy(pgDump: URL, psql: URL, source: PostgresToolEndpoint, target: PostgresToolEndpoint,
-                      recreatePublicSchema: Bool, options: Options,
+                      plan: Plan, options: Options,
                       progress: @escaping @Sendable (Progress) -> Void) async throws {
         let dump = Process()
         dump.executableURL = pgDump
         dump.arguments = source.arguments + ["--format=plain", "--verbose"]
             + (options.keepOwnership ? [] : ["--no-owner", "--no-privileges"])
             + (options.includeData ? [] : ["--schema-only"])
+            + Self.exclusionArguments(plan)
         source.configure(dump)
         let dumpOutput = Pipe()
         dump.standardInput = FileHandle.nullDevice
@@ -170,7 +243,7 @@ final class DatabaseCopier: @unchecked Sendable {
             throw error
         }
 
-        let script = Data(Self.wipeScript(recreatePublicSchema: recreatePublicSchema).utf8)
+        let script = Data(Self.wipeScript(plan).utf8)
         let reachedEnd = await Self.pump(script, from: dumpOutput.fileHandleForReading.fileDescriptor,
                                          to: loadInput.fileHandleForWriting.fileDescriptor) { step.setBytes($0) }
         // psql stopped reading (it failed); pg_dump may be blocked writing to the full pipe.

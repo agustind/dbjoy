@@ -19,6 +19,9 @@ final class CopyDatabaseModel: CompareSidesModel {
     private(set) var phase: Phase = .idle
     private(set) var progress = DatabaseCopier.Progress(step: "", bytes: 0)
     private(set) var startedAt = Date()
+    /// What the copy leaves alone, worked out before asking for confirmation.
+    private(set) var plan = DatabaseCopier.Plan()
+    private(set) var isPlanning = false
     @ObservationIgnored private var task: Task<Void, Never>?
 
     private let request: CompareRequest
@@ -85,24 +88,41 @@ final class CopyDatabaseModel: CompareSidesModel {
         return "The target runs PostgreSQL \(to), older than the source (\(from)). The copy may fail; if it does, the target isn't changed."
     }
 
+    /// Checks both databases for what the copy has to leave alone. Returns false if that failed.
+    func preparePlan() async -> Bool {
+        guard canCopy, let from = source.session, let to = target.session else { return false }
+        isPlanning = true
+        defer { isPlanning = false }
+        do {
+            plan = try await DatabaseCopier.plan(source: from, target: to)
+            return true
+        } catch {
+            phase = .failed("Couldn't check the databases before copying.\n\n"
+                + ((error as? DatabaseError)?.fullDescription ?? error.localizedDescription))
+            return false
+        }
+    }
+
     func copy() {
         guard canCopy, let from = source.toolEndpoint, let to = target.toolEndpoint else { return }
         let options = DatabaseCopier.Options(includeData: includeData, keepOwnership: keepOwnership)
-        let recreatePublic = source.schemas.contains("public")
+        let plan = plan
         let summary = "\(source.database) (\(source.config?.displayName ?? "")) → \(target.database) (\(target.config?.displayName ?? ""))"
         phase = .copying
         progress = .init(step: "Connecting", bytes: 0)
         startedAt = Date()
         task = Task {
             do {
-                try await DatabaseCopier().run(from: from, to: to, recreatePublicSchema: recreatePublic, options: options) { progress in
+                try await DatabaseCopier().run(from: from, to: to, plan: plan, options: options) { progress in
                     Task { @MainActor [weak self] in
                         if self?.phase == .copying { self?.progress = progress }
                     }
                 }
                 let seconds = Int(Date().timeIntervalSince(startedAt).rounded())
                 let time = seconds < 1 ? "under a second" : Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes, .seconds]))
-                phase = .done("Copied \(summary) in \(time).")
+                let skipped = plan.skippedSchemaNames
+                phase = .done("Copied \(summary) in \(time)."
+                    + (skipped.isEmpty ? "" : " Left as they were: \(skipped.joined(separator: ", "))."))
             } catch is CancellationError {
                 phase = .done("Cancelled. The target wasn't changed.")
             } catch {
