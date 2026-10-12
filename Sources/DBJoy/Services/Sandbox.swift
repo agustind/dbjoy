@@ -26,7 +26,7 @@ enum Sandbox {
     }
 }
 
-/// Command-line helpers shipped inside the app (Contents/Helpers): `pg_dump` and `dbjoy-askpass`.
+/// Command-line helpers shipped inside the app (Contents/Helpers): `pg_dump`, `psql` and `dbjoy-askpass`.
 enum BundledTools {
     /// The bundled tool, or during development (`swift run`, tests) the one built next to the binary.
     static func url(_ name: String) -> URL? {
@@ -36,6 +36,17 @@ enum BundledTools {
             Bundle(for: Marker.self).bundleURL.deletingLastPathComponent().appendingPathComponent(name),
         ]
         return candidates.compactMap { $0 }.first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
+
+    /// A PostgreSQL client tool (`pg_dump`, `psql`): the bundled one, or else a Homebrew or
+    /// Postgres.app install (development builds).
+    static func postgres(_ name: String) -> URL? {
+        if let bundled = url(name) { return bundled }
+        var directories = ["/opt/homebrew/opt/libpq/bin", "/opt/homebrew/bin", "/usr/local/opt/libpq/bin", "/usr/local/bin",
+                           "/Applications/Postgres.app/Contents/Versions/latest/bin"]
+        if let prefix = ProcessInfo.processInfo.environment["LIBPQ_PREFIX"] { directories.insert(prefix + "/bin", at: 0) }
+        return directories.map { URL(fileURLWithPath: $0).appendingPathComponent(name) }
+            .first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
     private final class Marker {}

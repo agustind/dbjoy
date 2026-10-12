@@ -171,7 +171,6 @@ final class WorkspaceModel {
     }
 
     /// Port that tools like pg_dump should use (the tunnel's local port when tunneling).
-    var effectivePort: Int { config.ssh.isEnabled ? (tunnel?.localPort ?? config.port) : config.port }
 
     /// Saves SSH tunnel settings for this connection and reconnects through them.
     func applySSH(_ ssh: SSHTunnelConfig, secret: String?) async {
@@ -275,12 +274,10 @@ final class WorkspaceModel {
         try await Drivers.driver(for: config.kind).connect(try await endpoint(), password: password, database: currentDatabase)
     }
 
-    /// libpq environment for command-line tools such as pg_dump.
-    func dumpEnvironment() -> [String: String] {
-        var environment = ["PGSSLMODE": config.sslMode.rawValue, "PGCONNECT_TIMEOUT": "10", "PGAPPNAME": "DBJoy"]
-        if config.ssh.isEnabled, tunnel != nil { environment["PGHOSTADDR"] = "127.0.0.1" }
-        if let password, !password.isEmpty { environment["PGPASSWORD"] = password }
-        return environment
+    /// Where command-line tools such as pg_dump connect to the current database.
+    func toolEndpoint() -> PostgresToolEndpoint {
+        PostgresToolEndpoint(config: config, tunnel: config.ssh.isEnabled ? tunnel : nil, password: password,
+                             database: currentDatabase)
     }
 
     func startExport(_ refs: [ObjectRef]? = nil) {

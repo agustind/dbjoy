@@ -35,6 +35,12 @@ struct DBJoyApp: App {
         // Don't reconnect to two databases on launch.
         .restorationBehavior(.disabled)
 
+        WindowGroup("Copy Database", id: "copy-database", for: CompareRequest.self) { $request in
+            CopyDatabaseView(request: request ?? CompareRequest())
+        }
+        .defaultSize(width: 900, height: 480)
+        .restorationBehavior(.disabled)
+
         Settings {
             SettingsView()
         }
@@ -177,6 +183,9 @@ struct AppCommands: Commands {
                                                                 schema: workspace?.currentSchema))
             }
             .keyboardShortcut("d", modifiers: [.command, .shift])
+            Button("Copy Database…") {
+                openWindow(id: "copy-database", value: CompareRequest(sourceID: workspace?.config.id, database: workspace?.currentDatabase))
+            }
 
             Divider()
 

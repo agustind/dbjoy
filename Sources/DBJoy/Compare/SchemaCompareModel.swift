@@ -37,6 +37,17 @@ final class CompareSide {
     /// The open session, once `state` is `.ready`.
     var session: (any DatabaseConnection)? { state == .ready ? connection : nil }
 
+    /// Where pg_dump and psql connect to this side's database, once connected.
+    var toolEndpoint: PostgresToolEndpoint? {
+        guard state == .ready, let config else { return nil }
+        return PostgresToolEndpoint(config: config, tunnel: tunnel, password: password, database: database)
+    }
+
+    /// The server's major version, such as 17.
+    var serverMajorVersion: Int? {
+        session.flatMap { Int($0.serverVersion.prefix { $0.isNumber }) }
+    }
+
     func select(_ id: UUID?, database: String? = nil) async {
         await close()
         connectionID = id
@@ -103,9 +114,19 @@ final class CompareSide {
     }
 }
 
+/// A window with a source and a target side, each picked with a `SideCard`.
+@MainActor
+protocol CompareSidesModel: AnyObject {
+    var source: CompareSide { get }
+    var target: CompareSide { get }
+    func select(_ id: UUID?, on side: CompareSide) async
+    func selectDatabase(_ name: String, on side: CompareSide) async
+    func submitPassword(_ value: String, on side: CompareSide) async
+}
+
 /// Compares a schema in two databases and builds the migration that makes the target match the source.
 @MainActor @Observable
-final class SchemaCompareModel {
+final class SchemaCompareModel: CompareSidesModel {
     enum Phase: Equatable {
         case idle
         case comparing
@@ -150,6 +171,10 @@ final class SchemaCompareModel {
     func selectTarget(_ id: UUID?) async {
         await target.select(id)
         reset()
+    }
+
+    func select(_ id: UUID?, on side: CompareSide) async {
+        side === source ? await selectSource(id) : await selectTarget(id)
     }
 
     func selectDatabase(_ name: String, on side: CompareSide) async {

@@ -67,14 +67,7 @@ final class ExportModel: Identifiable {
     }
 
     /// The pg_dump bundled with the app, or else a Homebrew / Postgres.app install (development builds).
-    static let pgDumpURL: URL? = {
-        if let bundled = BundledTools.url("pg_dump") { return bundled }
-        var directories = ["/opt/homebrew/opt/libpq/bin", "/opt/homebrew/bin", "/usr/local/opt/libpq/bin", "/usr/local/bin",
-                           "/Applications/Postgres.app/Contents/Versions/latest/bin"]
-        if let prefix = ProcessInfo.processInfo.environment["LIBPQ_PREFIX"] { directories.insert(prefix + "/bin", at: 0) }
-        return directories.map { URL(fileURLWithPath: $0).appendingPathComponent("pg_dump") }
-            .first { FileManager.default.isExecutableFile(atPath: $0.path) }
-    }()
+    static let pgDumpURL = BundledTools.postgres("pg_dump")
 
     var visibleObjects: [SchemaObject] {
         includeViews ? objects : objects.filter { $0.kind == .table }
@@ -178,16 +171,13 @@ final class ExportModel: Identifiable {
         guard let workspace, let tool = Self.pgDumpURL else {
             throw DatabaseError("pg_dump was not found. Install it with: brew install libpq")
         }
-        let config = workspace.config
-        let arguments = ["--host", config.host.isEmpty ? "localhost" : config.host, "--port", String(workspace.effectivePort),
-                         "--username", config.user, "--dbname", workspace.currentDatabase,
-                         "--file", file.path, "--no-password", "--format=plain"]
+        let endpoint = workspace.toolEndpoint()
         currentTable = "pg_dump"
 
         let process = Process()
         process.executableURL = tool
-        process.arguments = arguments
-        process.environment = ProcessInfo.processInfo.environment.merging(workspace.dumpEnvironment()) { $1 }
+        process.arguments = endpoint.arguments + ["--file", file.path, "--format=plain"]
+        endpoint.configure(process)
         let errors = Pipe()
         process.standardError = errors
         process.standardOutput = FileHandle.nullDevice

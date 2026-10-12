@@ -181,8 +181,8 @@ struct SchemaCompareView: View {
 }
 
 /// Picks one side's connection and database.
-private struct SideCard: View {
-    var model: SchemaCompareModel
+struct SideCard: View {
+    var model: any CompareSidesModel
     var side: CompareSide
     var title: String
     var caption: String
@@ -204,7 +204,7 @@ private struct SideCard: View {
             }
             HStack(spacing: 8) {
                 Picker("Connection", selection: Binding(get: { side.connectionID }, set: { id in
-                    Task { side === model.source ? await model.selectSource(id) : await model.selectTarget(id) }
+                    Task { await model.select(id, on: side) }
                 })) {
                     Text("Choose a connection…").tag(UUID?.none)
                     ForEach(connections) { config in

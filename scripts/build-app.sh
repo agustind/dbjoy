@@ -15,11 +15,13 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Helpers"
 cp "$BIN" "$APP/Contents/MacOS/DBJoy"
 cp Assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
-# Helpers: the SSH askpass, and pg_dump for backups (so they don't need Homebrew).
+# Helpers: the SSH askpass, pg_dump for backups, and psql for copying databases (so they don't need Homebrew).
 cp "$(dirname "$BIN")/dbjoy-askpass" "$APP/Contents/Helpers/dbjoy-askpass"
 LIBPQ_PREFIX="${LIBPQ_PREFIX:-/opt/homebrew/opt/libpq}"
-cp "$(realpath "$LIBPQ_PREFIX/bin/pg_dump")" "$APP/Contents/Helpers/pg_dump"
-chmod u+w "$APP/Contents/Helpers/pg_dump"
+for tool in pg_dump psql; do
+  cp "$(realpath "$LIBPQ_PREFIX/bin/$tool")" "$APP/Contents/Helpers/$tool"
+  chmod u+w "$APP/Contents/Helpers/$tool"
+done
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -64,12 +66,15 @@ bundle_deps() {
 }
 bundle_deps "$APP/Contents/MacOS/DBJoy"
 bundle_deps "$APP/Contents/Helpers/pg_dump"
+bundle_deps "$APP/Contents/Helpers/psql"
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/DBJoy" 2>/dev/null || true
-install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/Helpers/pg_dump" 2>/dev/null || true
+for tool in pg_dump psql; do
+  install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/Helpers/$tool" 2>/dev/null || true
+done
 for lib in "$FRAMEWORKS"/*.dylib; do
   install_name_tool -add_rpath "@loader_path" "$lib" 2>/dev/null || true
 done
-if otool -L "$APP/Contents/MacOS/DBJoy" "$APP/Contents/Helpers/pg_dump" "$FRAMEWORKS"/*.dylib | grep -qE "^\s+(/opt/homebrew|/usr/local)/"; then
+if otool -L "$APP/Contents/MacOS/DBJoy" "$APP/Contents/Helpers/pg_dump" "$APP/Contents/Helpers/psql" "$FRAMEWORKS"/*.dylib | grep -qE "^\s+(/opt/homebrew|/usr/local)/"; then
   echo "error: unbundled Homebrew library references remain" >&2
   exit 1
 fi

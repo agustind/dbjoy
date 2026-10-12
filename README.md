@@ -24,7 +24,7 @@ Download the latest `DBJoy-<version>.dmg` from [Releases](https://github.com/agu
 drag **DBJoy** to Applications. Builds are signed with a Developer ID and notarized by Apple.
 
 - macOS 15 or later, Apple Silicon
-- Self-contained: libpq and pg_dump (for backups) ship inside the app
+- Self-contained: libpq, pg_dump (for backups) and psql (for copying databases) ship inside the app
 
 ## Features
 
@@ -105,6 +105,17 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Copy the script, save it as a `.sql` file, open it in a query tab on the target, or run it there in one
   transaction (nothing changes if a statement fails), with a confirmation that names the environment
 - Not compared: partitions, grants, policies, and indexes on materialized views
+
+### Copy a database
+- Replace everything in one database with an exact copy of another, e.g. production into a local database
+  (Database → Copy Database…): every schema, table, view, materialized view, function, procedure, type, sequence,
+  trigger and extension, with or without the data
+- DBJoy drops every schema in the target first. The whole copy runs in one transaction, so if anything fails or you
+  cancel, the target stays as it was
+- You confirm by typing the target database's name
+- Owners and grants aren't copied by default, so the copy works between servers with different roles. Turn on
+  Copy owners and privileges to keep them
+- Works across connections and servers, including through SSH tunnels, with the bundled pg_dump and psql
 
 ### Export
 - CSV or JSON (one file per table), or SQL `INSERT`s (one file, ordered by foreign keys, sequences reset)
