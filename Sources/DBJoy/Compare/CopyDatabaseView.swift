@@ -67,7 +67,7 @@ struct CopyDatabaseView: View {
 
     private var notes: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("DBJoy drops every schema in the target, then copies the source in with pg_dump: schemas, tables, views, materialized views, functions, procedures, types, sequences, triggers, extensions and data. It all runs in one transaction, so if anything fails, the target stays as it was.")
+            Text("DBJoy drops every schema in the target, then copies the source in with pg_dump: schemas, tables, views, materialized views, functions, procedures, types, sequences, triggers, extensions and data. On managed services such as Supabase, schemas that belong to the platform stay, and their rows are copied where allowed. It all runs in one transaction, so if anything fails, the target stays as it was.")
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             if model.sameDatabase {
@@ -104,10 +104,16 @@ struct CopyDatabaseView: View {
             .font(.callout)
             .accessibilityIdentifier("copy-progress")
         case .done(let message):
-            Label(message, systemImage: "checkmark.circle.fill")
-                .font(.callout)
-                .textSelection(.enabled)
-                .accessibilityIdentifier("copy-result")
+            VStack(alignment: .leading, spacing: 6) {
+                Label(message, systemImage: "checkmark.circle.fill")
+                    .accessibilityIdentifier("copy-result")
+                ForEach(model.warnings, id: \.self) { warning in
+                    Label(warning.prefix(1).uppercased() + warning.dropFirst(), systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+            }
+            .font(.callout)
+            .textSelection(.enabled)
         case .failed(let message):
             ScrollView {
                 Label {
@@ -167,7 +173,7 @@ private struct ConfirmCopySheet: View {
             }
             Text("Everything in \(model.target.database) is deleted and replaced with a copy of \(model.source.database) from \(model.source.config?.displayName ?? "the source")\(model.includeData ? "" : ", without its data").")
                 .fixedSize(horizontal: false, vertical: true)
-            if !model.plan.skippedSchemas.isEmpty || !model.plan.skippedExtensions.isEmpty {
+            if !PlanSummary.sections(model.plan, includeData: model.includeData).isEmpty {
                 skipped
             }
             Text("Type \(model.target.database) to confirm.")
@@ -192,21 +198,26 @@ private struct ConfirmCopySheet: View {
         .frame(width: 460)
     }
 
-    /// Schemas and extensions the copy can't replace, as reported by the plan.
+    /// What the copy handles differently, as worked out by the plan.
     private var skipped: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Left as they are")
-                .font(.callout.weight(.semibold))
-            ForEach(model.plan.skippedSchemas, id: \.schema) { item in
-                Text("• \(item.schema): \(item.reason)")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(PlanSummary.sections(model.plan, includeData: model.includeData), id: \.title) { section in
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(section.title)
+                            .font(.callout.weight(.semibold))
+                        ForEach(section.lines, id: \.self) { line in
+                            Text("• " + line)
+                        }
+                    }
+                }
             }
-            if !model.plan.skippedExtensions.isEmpty {
-                Text("• Extensions owned by another role: \(model.plan.skippedExtensions.joined(separator: ", "))")
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxHeight: 280)
+        .fixedSize(horizontal: false, vertical: true)
         .font(.callout)
         .foregroundStyle(Theme.textSecondary)
-        .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier("copy-skipped")
     }
 
@@ -214,5 +225,69 @@ private struct ConfirmCopySheet: View {
         guard typed == model.target.database else { return }
         dismiss()
         model.copy()
+    }
+}
+
+/// The plan in words, for the confirmation.
+enum PlanSummary {
+    struct Section {
+        var title: String
+        var lines: [String]
+    }
+
+    static func sections(_ plan: DatabaseCopier.Plan, includeData: Bool) -> [Section] {
+        var sections: [Section] = []
+        var kept: [String] = []
+        let byReason = Dictionary(grouping: plan.skippedSchemas, by: \.reason)
+        for reason in byReason.keys.sorted() {
+            kept.append("Schemas that \(reason.replacingOccurrences(of: "belongs", with: "belong").replacingOccurrences(of: "holds", with: "hold").replacingOccurrences(of: "isn't", with: "aren't")): "
+                + list(byReason[reason]!.map(\.schema)))
+        }
+        if !plan.skippedExtensions.isEmpty {
+            kept.append("Extensions that belong to another role: " + list(plan.skippedExtensions))
+        }
+        if !kept.isEmpty { sections.append(Section(title: "Kept as they are in the target", lines: kept)) }
+
+        var copied: [String] = []
+        if includeData, !plan.platformTables.isEmpty {
+            copied.append("Rows of \(count(plan.platformTables.count, "table")): " + list(plan.platformTables.map(\.description)))
+        }
+        let triggers = plan.platformTriggers.count, policies = plan.platformPolicies.count
+        if triggers + policies > 0 {
+            copied.append([triggers > 0 ? count(triggers, "trigger") : nil, policies > 0 ? count(policies, "policy", "policies") : nil]
+                .compactMap { $0 }.joined(separator: " and ") + " on their tables, replacing the target's")
+        }
+        if !copied.isEmpty { sections.append(Section(title: "Copied into those schemas", lines: copied)) }
+
+        if !plan.clearedSchemas.isEmpty {
+            sections.append(Section(title: "Emptied instead of dropped", lines: plan.clearedSchemas.map {
+                "\($0): it holds another role's objects (such as an extension), which stay"
+            }))
+        }
+
+        var skipped: [String] = []
+        if includeData, !plan.skippedTableData.isEmpty {
+            skipped.append("Rows of extension tables: " + list(plan.skippedTableData.map(\.description)))
+        }
+        if includeData, plan.skippedSchemaNames.contains(where: DatabaseCopier.platformSchemasWithoutData.contains) {
+            skipped.append("Rows in storage: the files themselves live outside the database")
+        }
+        if !plan.skippedEventTriggers.isEmpty {
+            skipped.append("Event triggers: " + list(plan.skippedEventTriggers))
+        }
+        if !plan.copiesPublications {
+            skipped.append("Publications, because the target's " + list(plan.keptPublications) + " belong to another role")
+        }
+        if !skipped.isEmpty { sections.append(Section(title: "Not copied", lines: skipped)) }
+        return sections
+    }
+
+    private static func list(_ items: [String], limit: Int = 6) -> String {
+        items.count <= limit ? items.joined(separator: ", ")
+            : items.prefix(limit).joined(separator: ", ") + " and \(items.count - limit) more"
+    }
+
+    private static func count(_ n: Int, _ singular: String, _ plural: String? = nil) -> String {
+        "\(n) \(n == 1 ? singular : plural ?? singular + "s")"
     }
 }

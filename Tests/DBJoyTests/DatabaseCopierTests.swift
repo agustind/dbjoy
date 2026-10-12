@@ -195,8 +195,43 @@ struct DatabaseCopierTests {
         var plan = DatabaseCopier.Plan()
         plan.skippedSchemas = [.init(schema: "Auth*", reason: "")]
         plan.skippedExtensions = ["pg_stat_statements"]
-        #expect(DatabaseCopier.exclusionArguments(plan) == ["--exclude-schema=\"Auth*\"", "--exclude-extension=\"pg_stat_statements\""])
+        #expect(DatabaseCopier.exclusionArguments(plan)
+            == ["--exclude-schema=\"Auth*\"", "--exclude-extension=\"pg_stat_statements\"", "--no-subscriptions"])
         #expect(DatabaseCopier.wipeScript(plan).contains("AND nspname NOT IN ('Auth*')"))
+    }
+
+    @Test func filterDropsEventTriggersButNotData() {
+        let dump = """
+            --
+            -- Name: watch; Type: EVENT TRIGGER; Schema: -; Owner: -
+            --
+
+            CREATE EVENT TRIGGER watch ON ddl_command_end
+               EXECUTE FUNCTION public.log();
+
+            --
+            -- Data for Name: notes; Type: TABLE DATA; Schema: public; Owner: -
+            --
+
+            COPY public.notes (body) FROM stdin;
+            -- Name: watch; Type: EVENT TRIGGER; Schema: -; Owner: -
+            CREATE EVENT TRIGGER x
+            \\.
+
+            \\unrestrict abc
+
+            """
+        let filter = DumpFilter()
+        let bytes = Array(dump.utf8)
+        // Split mid-line to check that lines are put back together across chunks.
+        var output = bytes[..<37].withUnsafeBytes { filter.process($0) }
+        output += bytes[37...].withUnsafeBytes { filter.process($0) }
+        output += filter.finish()
+        let text = String(decoding: output, as: UTF8.self)
+        #expect(!text.contains("ON ddl_command_end"))
+        #expect(text.contains("COPY public.notes (body) FROM stdin;\n-- Name: watch; Type: EVENT TRIGGER;"))
+        #expect(text.contains("CREATE EVENT TRIGGER x\n\\.\n"))
+        #expect(text.contains("\\unrestrict abc"))
     }
 
     @Test func errorDetailDropsPsqlPrefixes() {

@@ -22,6 +22,8 @@ final class CopyDatabaseModel: CompareSidesModel {
     /// What the copy leaves alone, worked out before asking for confirmation.
     private(set) var plan = DatabaseCopier.Plan()
     private(set) var isPlanning = false
+    /// Parts the copy couldn't replace, such as a policy that belongs to another role.
+    private(set) var warnings: [String] = []
     @ObservationIgnored private var task: Task<Void, Never>?
 
     private let request: CompareRequest
@@ -109,20 +111,20 @@ final class CopyDatabaseModel: CompareSidesModel {
         let plan = plan
         let summary = "\(source.database) (\(source.config?.displayName ?? "")) → \(target.database) (\(target.config?.displayName ?? ""))"
         phase = .copying
+        warnings = []
         progress = .init(step: "Connecting", bytes: 0)
         startedAt = Date()
         task = Task {
             do {
-                try await DatabaseCopier().run(from: from, to: to, plan: plan, options: options) { progress in
+                let warnings = try await DatabaseCopier().run(from: from, to: to, plan: plan, options: options) { progress in
                     Task { @MainActor [weak self] in
                         if self?.phase == .copying { self?.progress = progress }
                     }
                 }
                 let seconds = Int(Date().timeIntervalSince(startedAt).rounded())
                 let time = seconds < 1 ? "under a second" : Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes, .seconds]))
-                let skipped = plan.skippedSchemaNames
-                phase = .done("Copied \(summary) in \(time)."
-                    + (skipped.isEmpty ? "" : " Left as they were: \(skipped.joined(separator: ", "))."))
+                phase = .done("Copied \(summary) in \(time).")
+                if !warnings.isEmpty { self.warnings = warnings }
             } catch is CancellationError {
                 phase = .done("Cancelled. The target wasn't changed.")
             } catch {
