@@ -162,36 +162,38 @@ struct AssistantIntegrationTests {
     }
 
     @Test func writesAreAtomicAndOpenInEditorAddsATab() async throws {
-        UserDefaults.standard.set(true, forKey: AssistantSettings.allowWritesKey)
-        UserDefaults.standard.set(false, forKey: AssistantSettings.confirmWritesKey)
-        defer {
-            UserDefaults.standard.removeObject(forKey: AssistantSettings.allowWritesKey)
-            UserDefaults.standard.removeObject(forKey: AssistantSettings.confirmWritesKey)
+        try await SampleDatabaseLock.run {
+            UserDefaults.standard.set(true, forKey: AssistantSettings.allowWritesKey)
+            UserDefaults.standard.set(false, forKey: AssistantSettings.confirmWritesKey)
+            defer {
+                UserDefaults.standard.removeObject(forKey: AssistantSettings.allowWritesKey)
+                UserDefaults.standard.removeObject(forKey: AssistantSettings.confirmWritesKey)
+            }
+            let (workspace, assistant) = try await connectedAssistant()
+            defer { Task { await workspace.disconnect() } }
+            _ = await workspace.runStatements(["DROP TABLE IF EXISTS assistant_probe"])
+
+            ScriptedLLM.responses = [
+                ScriptedLLM.toolUse([("w1", "execute_sql", ["sql": "CREATE TABLE assistant_probe (x int); INSERT INTO assistant_probe VALUES (1)",
+                                                             "summary": "Create a probe table"])]),
+                ScriptedLLM.toolUse([("w2", "execute_sql", ["sql": "INSERT INTO assistant_probe VALUES (2); INSERT INTO no_such_table VALUES (1)",
+                                                             "summary": "Half-failing insert"])]),
+                ScriptedLLM.toolUse([("w3", "execute_sql", ["sql": "INSERT INTO assistant_probe VALUES (3); COMMIT",
+                                                             "summary": "Escaping the transaction"])]),
+                ScriptedLLM.toolUse([("w4", "open_in_editor", ["sql": "SELECT * FROM assistant_probe", "title": "Probe"])]),
+                ScriptedLLM.reply("Done."),
+            ]
+            await ask(assistant, "Make a probe table")
+
+            #expect(try await count(workspace, "SELECT string_agg(x::text, ',') FROM assistant_probe") == "1")
+            #expect(ScriptedLLM.requests.count == 5)
+            #expect(ScriptedLLM.requests[2]["messages"]?.arrayValue?.last?["content"]?[0]?["content"]?.stringValue?
+                .contains("rolled back") == true)
+            #expect(workspace.objects.contains { $0.name == "assistant_probe" })
+            guard case .query(let tab) = workspace.selectedTab else { Issue.record("no query tab"); return }
+            #expect(tab.title == "Probe")
+            #expect(tab.sql == "SELECT * FROM assistant_probe")
+            _ = await workspace.runStatements(["DROP TABLE assistant_probe"])
         }
-        let (workspace, assistant) = try await connectedAssistant()
-        defer { Task { await workspace.disconnect() } }
-        _ = await workspace.runStatements(["DROP TABLE IF EXISTS assistant_probe"])
-
-        ScriptedLLM.responses = [
-            ScriptedLLM.toolUse([("w1", "execute_sql", ["sql": "CREATE TABLE assistant_probe (x int); INSERT INTO assistant_probe VALUES (1)",
-                                                         "summary": "Create a probe table"])]),
-            ScriptedLLM.toolUse([("w2", "execute_sql", ["sql": "INSERT INTO assistant_probe VALUES (2); INSERT INTO no_such_table VALUES (1)",
-                                                         "summary": "Half-failing insert"])]),
-            ScriptedLLM.toolUse([("w3", "execute_sql", ["sql": "INSERT INTO assistant_probe VALUES (3); COMMIT",
-                                                         "summary": "Escaping the transaction"])]),
-            ScriptedLLM.toolUse([("w4", "open_in_editor", ["sql": "SELECT * FROM assistant_probe", "title": "Probe"])]),
-            ScriptedLLM.reply("Done."),
-        ]
-        await ask(assistant, "Make a probe table")
-
-        #expect(try await count(workspace, "SELECT string_agg(x::text, ',') FROM assistant_probe") == "1")
-        #expect(ScriptedLLM.requests.count == 5)
-        #expect(ScriptedLLM.requests[2]["messages"]?.arrayValue?.last?["content"]?[0]?["content"]?.stringValue?
-            .contains("rolled back") == true)
-        #expect(workspace.objects.contains { $0.name == "assistant_probe" })
-        guard case .query(let tab) = workspace.selectedTab else { Issue.record("no query tab"); return }
-        #expect(tab.title == "Probe")
-        #expect(tab.sql == "SELECT * FROM assistant_probe")
-        _ = await workspace.runStatements(["DROP TABLE assistant_probe"])
     }
 }

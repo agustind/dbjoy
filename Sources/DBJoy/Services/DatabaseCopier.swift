@@ -421,6 +421,12 @@ final class DatabaseCopier: @unchecked Sendable {
                          AND pg_has_role(c.relowner, 'MEMBER')
                          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass
                                          AND d.objid = c.oid AND d.deptype = 'e')
+                         -- A column's sequence (serial, identity) goes with its table; identity ones can't be dropped alone.
+                         AND NOT (c.relkind = 'S' AND EXISTS (SELECT 1 FROM pg_depend d
+                                  WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
+                                    AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a', 'i')))
+                       -- Tables first, then views, sequences and composite types.
+                       ORDER BY c.relkind NOT IN ('r', 'p', 'f'), c.relkind = 'S', c.relkind = 'c'
               LOOP
                 -- An earlier CASCADE (or the parent table) may have dropped it already.
                 CONTINUE WHEN NOT EXISTS (SELECT 1 FROM pg_class WHERE oid = r.oid);
