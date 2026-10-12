@@ -17,12 +17,18 @@ final class CopyDatabaseModel: CompareSidesModel {
     var includeData = true
     var keepOwnership = false
     var includePlatformData = false
+    /// Tables the user chose to copy without their rows.
+    var tablesWithoutData: Set<DatabaseCopier.Plan.Table> = []
     private(set) var phase: Phase = .idle
     private(set) var progress = DatabaseCopier.Progress(step: "", bytes: 0)
     private(set) var startedAt = Date()
     /// What the copy leaves alone, worked out before asking for confirmation.
     private(set) var plan = DatabaseCopier.Plan()
     private(set) var isPlanning = false
+    /// Whether `plan` matches the databases picked now, so its tables can be listed.
+    private(set) var hasPlan = false
+    private(set) var planError: String?
+    @ObservationIgnored private var planTask: Task<DatabaseCopier.Plan, Error>?
     /// Parts the copy couldn't replace, such as a policy that belongs to another role.
     private(set) var warnings: [String] = []
     @ObservationIgnored private var task: Task<Void, Never>?
@@ -36,20 +42,31 @@ final class CopyDatabaseModel: CompareSidesModel {
     func start() async {
         guard source.connectionID == nil else { return }
         await source.select(request.sourceID, database: request.database)
+        await refreshPlan()
     }
 
     func select(_ id: UUID?, on side: CompareSide) async {
+        databasesChanged(on: side)
         await side.select(id)
         clearResult()
+        await refreshPlan()
     }
 
     func selectDatabase(_ name: String, on side: CompareSide) async {
+        databasesChanged(on: side)
         await side.selectDatabase(name)
         clearResult()
+        await refreshPlan()
     }
 
     func submitPassword(_ value: String, on side: CompareSide) async {
         await side.submitPassword(value)
+        await refreshPlan()
+    }
+
+    private func databasesChanged(on side: CompareSide) {
+        hasPlan = false
+        if side === source { tablesWithoutData = [] }
     }
 
     /// Swaps source and target, keeping each side's database.
@@ -58,7 +75,10 @@ final class CopyDatabaseModel: CompareSidesModel {
         let (targetID, targetDatabase) = (target.connectionID, target.database)
         await source.select(targetID, database: targetDatabase.isEmpty ? nil : targetDatabase)
         await target.select(sourceID, database: sourceDatabase.isEmpty ? nil : sourceDatabase)
+        tablesWithoutData = []
+        hasPlan = false
         clearResult()
+        await refreshPlan()
     }
 
     func close() async {
@@ -91,13 +111,59 @@ final class CopyDatabaseModel: CompareSidesModel {
         return "The target runs PostgreSQL \(to), older than the source (\(from)). The copy may fail; if it does, the target isn't changed."
     }
 
+    // MARK: Tables
+
+    /// The tables whose rows can be copied, biggest first.
+    var dataTables: [DatabaseCopier.Plan.TableSize] {
+        guard hasPlan else { return [] }
+        return plan.dataTables(platformRows: includeData && includePlatformData).sorted {
+            ($0.bytes, $1.table.description) > ($1.bytes, $0.table.description)
+        }
+    }
+
+    func copiesRows(of table: DatabaseCopier.Plan.Table) -> Bool {
+        !tablesWithoutData.contains(table)
+    }
+
+    func setCopiesRows(_ copies: Bool, of tables: [DatabaseCopier.Plan.Table]) {
+        if copies { tablesWithoutData.subtract(tables) } else { tablesWithoutData.formUnion(tables) }
+    }
+
+    /// Runs one plan at a time: planning sets the source session's search_path for a moment.
+    private func makePlan() async throws -> DatabaseCopier.Plan {
+        guard let from = source.session, let to = target.session else { throw CancellationError() }
+        let previous = planTask
+        let task = Task {
+            _ = try? await previous?.value
+            return try await DatabaseCopier.plan(source: from, target: to)
+        }
+        planTask = task
+        return try await task.value
+    }
+
+    /// Plans as soon as both databases are picked, to list the source's tables.
+    func refreshPlan() async {
+        guard source.session != nil, target.session != nil, !sameDatabase, !isCopying else { return }
+        let pair = (source.connectionID, source.database, target.connectionID, target.database)
+        do {
+            let plan = try await makePlan()
+            guard pair == (source.connectionID, source.database, target.connectionID, target.database) else { return }
+            self.plan = plan
+            hasPlan = true
+            planError = nil
+        } catch {
+            planError = (error as? DatabaseError)?.fullDescription ?? error.localizedDescription
+        }
+    }
+
     /// Checks both databases for what the copy has to leave alone. Returns false if that failed.
     func preparePlan() async -> Bool {
-        guard canCopy, let from = source.session, let to = target.session else { return false }
+        guard canCopy, source.session != nil, target.session != nil else { return false }
         isPlanning = true
         defer { isPlanning = false }
         do {
-            plan = try await DatabaseCopier.plan(source: from, target: to)
+            plan = try await makePlan()
+            hasPlan = true
             return true
         } catch {
             phase = .failed("Couldn't check the databases before copying.\n\n"
@@ -106,10 +172,15 @@ final class CopyDatabaseModel: CompareSidesModel {
         }
     }
 
+    var options: DatabaseCopier.Options {
+        DatabaseCopier.Options(includeData: includeData, keepOwnership: keepOwnership,
+                               includePlatformData: includePlatformData,
+                               tablesWithoutData: tablesWithoutData.intersection(dataTables.map(\.table)))
+    }
+
     func copy() {
         guard canCopy, let from = source.toolEndpoint, let to = target.toolEndpoint else { return }
-        let options = DatabaseCopier.Options(includeData: includeData, keepOwnership: keepOwnership,
-                                             includePlatformData: includePlatformData)
+        let options = options
         let plan = plan
         let summary = "\(source.database) (\(source.config?.displayName ?? "")) → \(target.database) (\(target.config?.displayName ?? ""))"
         phase = .copying

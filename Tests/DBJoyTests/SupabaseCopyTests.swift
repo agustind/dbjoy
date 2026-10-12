@@ -157,4 +157,25 @@ struct SupabaseCopyTests {
         #expect(try await values(Self.usersQuery, port: Self.targetPort) == (try await values(Self.usersQuery, port: Self.sourcePort)))
         #expect(try await values(Self.foreignKeyQuery, port: Self.targetPort) == ["true"])
     }
+
+    /// Platform rows on, but auth.users left out: the target keeps its users. Jobs come without rows.
+    @Test func leavesOutTheRowsOfChosenTables() async throws {
+        try await setUp()
+        let plan = try await plan()
+        let users = DatabaseCopier.Plan.Table(schema: "auth", name: "users")
+        let jobs = DatabaseCopier.Plan.Table(schema: "public", name: "jobs")
+        #expect(plan.dataTables(platformRows: true).map(\.table).contains(users))
+        #expect(!plan.dataTables(platformRows: false).map(\.table).contains(users))
+        #expect(!plan.dataTables(platformRows: true).contains { $0.table.schema == "cron" || $0.table.schema == "storage" })
+
+        let usersBefore = try await values(Self.usersQuery, port: Self.targetPort)
+        let warnings = try await DatabaseCopier().run(
+            from: endpoint(port: Self.sourcePort), to: endpoint(port: Self.targetPort), plan: plan,
+            options: .init(includePlatformData: true, tablesWithoutData: [users, jobs])) { _ in }
+        #expect(warnings.isEmpty, "\(warnings)")
+        #expect(try await values(Self.usersQuery, port: Self.targetPort) == usersBefore)
+        #expect(try await values("SELECT count(*) FROM public.jobs", port: Self.targetPort) == ["0"])
+        #expect(try await values("SELECT count(*) FROM public.votes", port: Self.targetPort) == ["2"])
+        #expect(try await values(Self.foreignKeyQuery, port: Self.targetPort) == ["false"])
+    }
 }

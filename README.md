@@ -110,6 +110,8 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Replace everything in one database with an exact copy of another, e.g. production into a local database
   (Database → Copy Database…): every schema, table, view, materialized view, function, procedure, type, sequence,
   trigger and extension, with or without the data
+- Pick which tables come with their rows. The list shows each table's estimated row count and size, biggest first;
+  unchecked tables are copied empty, and foreign keys into them are added without checking the copied rows
 - DBJoy drops every schema in the target first. The whole copy runs in one transaction, so if anything fails or you
   cancel, the target stays as it was
 - You confirm by typing the target database's name

@@ -28,13 +28,16 @@ struct CopyDatabaseView: View {
             .disabled(model.isCopying)
 
             options
+            if model.includeData {
+                CopyTablesList(model: model)
+            }
             notes
-            Spacer(minLength: 0)
+            if !model.includeData { Spacer(minLength: 0) }
             status
             footer
         }
         .padding(16)
-        .frame(minWidth: 820, minHeight: 440)
+        .frame(minWidth: 820, minHeight: 640)
         .background(Theme.contentBackground)
         .tint(Theme.accent)
         .navigationTitle("Copy Database")
@@ -179,7 +182,7 @@ private struct ConfirmCopySheet: View {
             }
             Text("Everything in \(model.target.database) is deleted and replaced with a copy of \(model.source.database) from \(model.source.config?.displayName ?? "the source")\(model.includeData ? "" : ", without its data").")
                 .fixedSize(horizontal: false, vertical: true)
-            if !PlanSummary.sections(model.plan, rows: model.includeData, platformRows: model.includeData && model.includePlatformData).isEmpty {
+            if !PlanSummary.sections(model.plan, options: model.options).isEmpty {
                 skipped
             }
             Text("Type \(model.target.database) to confirm.")
@@ -208,7 +211,7 @@ private struct ConfirmCopySheet: View {
     private var skipped: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                ForEach(PlanSummary.sections(model.plan, rows: model.includeData, platformRows: model.includeData && model.includePlatformData), id: \.title) { section in
+                ForEach(PlanSummary.sections(model.plan, options: model.options), id: \.title) { section in
                     VStack(alignment: .leading, spacing: 3) {
                         Text(section.title)
                             .font(.callout.weight(.semibold))
@@ -241,7 +244,9 @@ enum PlanSummary {
         var lines: [String]
     }
 
-    static func sections(_ plan: DatabaseCopier.Plan, rows: Bool, platformRows: Bool) -> [Section] {
+    static func sections(_ plan: DatabaseCopier.Plan, options: DatabaseCopier.Options) -> [Section] {
+        let rows = options.includeData, platformRows = options.copiesPlatformRows
+        let copiedPlatformTables = options.platformRows(plan)
         var sections: [Section] = []
         var kept: [String] = []
         let byReason = Dictionary(grouping: plan.skippedSchemas, by: \.reason)
@@ -261,8 +266,8 @@ enum PlanSummary {
         if !kept.isEmpty { sections.append(Section(title: "Kept as they are in the target", lines: kept)) }
 
         var copied: [String] = []
-        if platformRows, !plan.platformTables.isEmpty {
-            copied.append("Rows of \(count(plan.platformTables.count, "table")): " + list(plan.platformTables.map(\.description)))
+        if !copiedPlatformTables.isEmpty {
+            copied.append("Rows of \(count(copiedPlatformTables.count, "table")): " + list(copiedPlatformTables.map(\.description)))
         }
         let triggers = plan.platformTriggers.count, policies = plan.platformPolicies.count
         if triggers + policies > 0 {
@@ -278,6 +283,11 @@ enum PlanSummary {
         }
 
         var skipped: [String] = []
+        if rows, !options.tablesWithoutData.isEmpty {
+            let names = options.tablesWithoutData.map(\.description).sorted()
+            skipped.append("Rows of \(count(names.count, "table")) you left out: " + list(names)
+                + ". Foreign keys into them don't check the copied rows")
+        }
         if rows, !plan.skippedTableData.isEmpty {
             skipped.append("Rows of extension tables: " + list(plan.skippedTableData.map(\.description)))
         }
@@ -302,4 +312,111 @@ enum PlanSummary {
     private static func count(_ n: Int, _ singular: String, _ plural: String? = nil) -> String {
         "\(n) \(n == 1 ? singular : plural ?? singular + "s")"
     }
+}
+
+/// The source's tables, with a checkbox for whether their rows are copied.
+private struct CopyTablesList: View {
+    @Bindable var model: CopyDatabaseModel
+    @State private var filter = ""
+    @State private var sortOrder = [KeyPathComparator(\DatabaseCopier.Plan.TableSize.bytes, order: .reverse)]
+
+    private var platform: Set<DatabaseCopier.Plan.Table> { Set(model.plan.platformTables) }
+
+    private var tables: [DatabaseCopier.Plan.TableSize] {
+        let all = model.dataTables
+        let shown = filter.isEmpty ? all : all.filter { $0.table.description.localizedCaseInsensitiveContains(filter) }
+        return shown.sorted(using: sortOrder)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                SectionLabel(title: "Tables")
+                    .fixedSize()
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+                Spacer()
+                TextField("Filter", text: $filter)
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
+                    .frame(width: 180)
+                Button("All") { model.setCopiesRows(true, of: tables.map(\.table)) }
+                    .controlSize(.small)
+                    .help(filter.isEmpty ? "Copy the rows of every table" : "Copy the rows of the tables shown")
+                Button("None") { model.setCopiesRows(false, of: tables.map(\.table)) }
+                    .controlSize(.small)
+                    .help(filter.isEmpty ? "Copy only the structure of every table" : "Copy only the structure of the tables shown")
+            }
+            content
+                .frame(minHeight: 180, maxHeight: .infinity)
+        }
+        .disabled(model.isCopying)
+    }
+
+    @ViewBuilder private var content: some View {
+        if let error = model.planError, !model.hasPlan {
+            Label(error, systemImage: "exclamationmark.triangle")
+                .font(.callout)
+                .foregroundStyle(Theme.textSecondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !model.hasPlan {
+            Text(model.source.session != nil && model.target.session != nil && !model.sameDatabase
+                 ? "Reading the tables…" : "Pick a source and a target to choose which tables' rows to copy.")
+                .font(.callout)
+                .foregroundStyle(Theme.textSecondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            Table(tables, sortOrder: $sortOrder) {
+                TableColumn("Copy") { (item: DatabaseCopier.Plan.TableSize) in
+                    Toggle("Copy the rows of \(item.table.description)", isOn: Binding(
+                        get: { model.copiesRows(of: item.table) },
+                        set: { model.setCopiesRows($0, of: [item.table]) }))
+                        .labelsHidden()
+                        .accessibilityIdentifier("copy-rows-\(item.table.description)")
+                        .help(platform.contains(item.table)
+                              ? "When off, the table keeps the target's rows" : "When off, the table is copied empty")
+                }
+                .width(44)
+                TableColumn("Table", value: \.table.description) { item in
+                    HStack(spacing: 6) {
+                        Text(item.table.description)
+                        if platform.contains(item.table) {
+                            Text("platform").font(.caption).foregroundStyle(Theme.textTertiary)
+                        }
+                    }
+                }
+                TableColumn("Rows", value: \.sortableRows) { item in
+                    Text(item.rows.map { $0.formatted(.number.notation(.compactName)) } ?? "unknown")
+                        .monospacedDigit()
+                        .foregroundStyle(item.rows == nil ? Theme.textTertiary : Theme.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .help("Postgres's estimate")
+                }
+                .width(90)
+                TableColumn("Size", value: \.bytes) { item in
+                    Text(ByteCountFormatter.string(fromByteCount: item.bytes, countStyle: .file))
+                        .monospacedDigit()
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .width(90)
+            }
+            .accessibilityIdentifier("copy-tables")
+        }
+    }
+
+    private var summary: String {
+        let all = model.dataTables
+        guard model.hasPlan, !all.isEmpty else { return "" }
+        let copied = all.filter { model.copiesRows(of: $0.table) }
+        let size = { (tables: [DatabaseCopier.Plan.TableSize]) in
+            ByteCountFormatter.string(fromByteCount: tables.reduce(0) { $0 + $1.bytes }, countStyle: .file)
+        }
+        return "Rows of \(copied.count) of \(all.count) tables, \(size(copied)) of \(size(all))"
+    }
+}
+
+private extension DatabaseCopier.Plan.TableSize {
+    var sortableRows: Int64 { rows ?? -1 }
 }

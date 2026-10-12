@@ -48,8 +48,15 @@ final class DatabaseCopier: @unchecked Sendable {
         /// Also replace the rows of tables in skipped schemas (`Plan.platformTables`), such as
         /// Supabase's auth.users. Off by default: the target keeps its users.
         var includePlatformData = false
+        /// Tables copied without their rows (structure only). For platform tables, the target keeps its rows.
+        var tablesWithoutData: Set<Plan.Table> = []
 
         var copiesPlatformRows: Bool { includeData && includePlatformData }
+
+        /// The platform tables whose rows the copy replaces.
+        func platformRows(_ plan: Plan) -> [Plan.Table] {
+            copiesPlatformRows ? plan.platformTables.filter { !tablesWithoutData.contains($0) } : []
+        }
     }
 
     struct Progress: Sendable {
@@ -70,10 +77,20 @@ final class DatabaseCopier: @unchecked Sendable {
             var reason: String
         }
 
-        struct Table: Sendable, Equatable, CustomStringConvertible {
+        struct Table: Sendable, Hashable, CustomStringConvertible {
             var schema: String
             var name: String
             var description: String { "\(schema).\(name)" }
+        }
+
+        /// A source table with rows, and how big it is.
+        struct TableSize: Sendable, Equatable, Identifiable {
+            var table: Table
+            /// Postgres's estimate, or nil before the table was ever analyzed.
+            var rows: Int64?
+            /// The table's data and TOAST, without indexes.
+            var bytes: Int64
+            var id: Table { table }
         }
 
         /// Schemas left as they are in the target and left out of the copy.
@@ -107,9 +124,20 @@ final class DatabaseCopier: @unchecked Sendable {
         /// Publications in the target that belong to other roles and that the source also has. When
         /// there are any, publications aren't copied at all, since they can't be replaced.
         var keptPublications: [String] = []
+        /// Every table in the source that has rows of its own, with its size.
+        var sourceTables: [TableSize] = []
 
         var skippedSchemaNames: [String] { skippedSchemas.map(\.schema) }
         var copiesPublications: Bool { keptPublications.isEmpty }
+
+        /// The tables whose rows the copy can include.
+        func dataTables(platformRows: Bool) -> [TableSize] {
+            let skipped = Set(skippedSchemaNames), skippedData = Set(skippedTableData)
+            let platform = platformRows ? Set(platformTables) : []
+            return sourceTables.filter {
+                skipped.contains($0.table.schema) ? platform.contains($0.table) : !skippedData.contains($0.table)
+            }
+        }
     }
 
     /// A statement the copy runs on its own, with a label for warnings.
@@ -154,6 +182,20 @@ final class DatabaseCopier: @unchecked Sendable {
             OR EXISTS (SELECT 1 FROM pg_class c WHERE c.relnamespace = n.oid AND c.relkind IN ('r', 'p', 'm', 'S')
                        AND NOT has_table_privilege(c.oid, 'SELECT')))
         ORDER BY 1
+        """
+
+    /// Tables with rows of their own (partitions, not their parents), with their size. Extensions'
+    /// own tables are left out: pg_dump doesn't copy their rows.
+    static let sourceTablesQuery = """
+        SELECT n.nspname, c.relname,
+          CASE WHEN c.reltuples >= 0 THEN c.reltuples::bigint ELSE s.n_live_tup END,
+          pg_table_size(c.oid)
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        LEFT JOIN pg_stat_all_tables s ON s.relid = c.oid
+        WHERE c.relkind = 'r' AND n.nspname <> 'information_schema' AND n.nspname !~ '^pg_'
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
+                          AND d.deptype = 'e')
+        ORDER BY 1, 2
         """
 
     /// Supabase Storage keeps its files outside the database: copying storage.objects rows would
@@ -235,6 +277,10 @@ final class DatabaseCopier: @unchecked Sendable {
         let targetEventTriggers = Set(try await rows(target, "SELECT evtname FROM pg_event_trigger").map { $0[0] })
         plan.skippedEventTriggers = try await rows(source, "SELECT evtname FROM pg_event_trigger ORDER BY 1")
             .map { $0[0] }.filter { !targetEventTriggers.contains($0) }
+        plan.sourceTables = try await source.query(sourceTablesQuery).rows.map { row in
+            Plan.TableSize(table: .init(schema: row[0] ?? "", name: row[1] ?? ""),
+                           rows: row[2].flatMap { Int64($0) }, bytes: Int64(row[3] ?? "") ?? 0)
+        }
 
         let platform = plan.skippedSchemaNames
         guard !platform.isEmpty else { return plan }
@@ -290,7 +336,7 @@ final class DatabaseCopier: @unchecked Sendable {
 
     /// SQL that runs before the copy. It drops every schema the plan doesn't skip or clear, with
     /// everything in it, empties the cleared ones, and removes the user's large objects.
-    static func wipeScript(_ plan: Plan, copyPlatformRows: Bool = false) -> String {
+    static func wipeScript(_ plan: Plan, platformRows: [Plan.Table] = []) -> String {
         let literal = { (name: String) in "'" + name.replacingOccurrences(of: "'", with: "''") + "'" }
         let kept = (plan.skippedSchemaNames + plan.clearedSchemas).map(literal)
         let keep = kept.isEmpty ? "" : " AND nspname NOT IN (\(kept.joined(separator: ", ")))"
@@ -299,6 +345,10 @@ final class DatabaseCopier: @unchecked Sendable {
             "SET client_min_messages = warning;",
             // Names below come out schema-qualified.
             "SELECT pg_catalog.set_config('search_path', '', false);",
+            // Server or role defaults made for apps would end a long copy: psql sits idle in the
+            // transaction while pg_dump reads the source, and loading a big table takes a while.
+            "SET statement_timeout = 0;",
+            "SET idle_in_transaction_session_timeout = 0;",
             // Fail instead of waiting forever when another session holds a lock on the target.
             "SET lock_timeout = '10s';",
             "DO $dbjoy$",
@@ -362,8 +412,8 @@ final class DatabaseCopier: @unchecked Sendable {
                 "END $dbjoy$;",
             ]
         }
-        if copyPlatformRows, !plan.platformTables.isEmpty {
-            lines.append("TRUNCATE " + plan.platformTables.map { quoteIdentifier($0.schema) + "." + quoteIdentifier($0.name) }
+        if !platformRows.isEmpty {
+            lines.append("TRUNCATE " + platformRows.map { quoteIdentifier($0.schema) + "." + quoteIdentifier($0.name) }
                 .joined(separator: ", ") + ";")
             // Load the platform rows without firing triggers or checking foreign keys, where allowed
             // (Supabase lets postgres do this; it's how its own restores work).
@@ -399,6 +449,10 @@ final class DatabaseCopier: @unchecked Sendable {
 
     static func quoteIdentifier(_ name: String) -> String {
         "\"" + name.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
+
+    static func qualifiedName(_ table: Plan.Table) -> String {
+        quoteIdentifier(table.schema) + "." + quoteIdentifier(table.name)
     }
 
     /// Drops what the current user owns in a schema, one object at a time: extensions, relations,
@@ -484,7 +538,7 @@ final class DatabaseCopier: @unchecked Sendable {
     static func exclusionArguments(_ plan: Plan) -> [String] {
         plan.skippedSchemaNames.map { "--exclude-schema=" + quoteIdentifier($0) }
             + plan.skippedExtensions.map { "--exclude-extension=" + quoteIdentifier($0) }
-            + plan.skippedTableData.map { "--exclude-table-data=" + quoteIdentifier($0.schema) + "." + quoteIdentifier($0.name) }
+            + plan.skippedTableData.map { "--exclude-table-data=" + qualifiedName($0) }
             + (plan.copiesPublications ? [] : ["--no-publications"])
             + ["--no-subscriptions"]
     }
@@ -497,18 +551,27 @@ final class DatabaseCopier: @unchecked Sendable {
     }
 
     static func segments(_ plan: Plan, options: Options) -> [Segment] {
-        var segments: [Segment] = [.sql(wipeScript(plan, copyPlatformRows: options.copiesPlatformRows))]
-        if options.copiesPlatformRows, !plan.platformTables.isEmpty {
+        let platformRows = options.platformRows(plan)
+        var segments: [Segment] = [.sql(wipeScript(plan, platformRows: platformRows))]
+        if !platformRows.isEmpty {
             segments.append(.dump(["--data-only", "--no-owner", "--no-privileges", "--verbose"]
-                + plan.platformTables.map { "--table=" + quoteIdentifier($0.schema) + "." + quoteIdentifier($0.name) },
+                + platformRows.map { "--table=" + qualifiedName($0) },
                 filter: nil))
             segments.append(.sql("SET session_replication_role = origin;\n"))
         }
+        // Tables copied without rows, other than platform tables (those aren't in this dump).
+        let skipped = Set(plan.skippedSchemaNames)
+        let withoutData = options.includeData
+            ? options.tablesWithoutData.filter { !skipped.contains($0.schema) }.sorted { $0.description < $1.description } : []
+        // Foreign keys into tables whose rows the target may not match don't check existing rows.
+        let allPlatformRows = options.copiesPlatformRows && platformRows.count == plan.platformTables.count
         segments.append(.dump(["--format=plain", "--verbose"]
             + (options.keepOwnership ? [] : ["--no-owner", "--no-privileges"])
             + (options.includeData ? [] : ["--schema-only"])
-            + exclusionArguments(plan),
-            filter: .init(relaxingReferencesTo: options.copiesPlatformRows ? [] : plan.skippedSchemaNames)))
+            + exclusionArguments(plan)
+            + withoutData.map { "--exclude-table-data=" + qualifiedName($0) },
+            filter: .init(relaxingReferencesTo: allPlatformRows ? [] : plan.skippedSchemaNames,
+                          relaxingReferencesToTables: withoutData)))
         if !plan.platformTriggers.isEmpty || !plan.platformPolicies.isEmpty {
             segments.append(.sql(finishScript(plan)))
         }
@@ -733,6 +796,9 @@ final class DatabaseCopier: @unchecked Sendable {
         if detail.contains("lock timeout") {
             detail += "\n\nAnother session is using the target database. Close it (or its open transaction) and try again."
         }
+        if detail.contains("connection to server was lost") || detail.contains("server closed the connection") {
+            detail += "\n\nThe server ended the connection in the middle of the copy. With a big database, leaving out the rows of the biggest tables makes the copy smaller and shorter."
+        }
         return detail.isEmpty ? "The tool exited without saying why." : detail
     }
 }
@@ -745,6 +811,8 @@ final class DumpFilter: @unchecked Sendable {
     struct Settings: Equatable {
         /// Schemas whose rows aren't copied; foreign keys into them become NOT VALID.
         var relaxingReferencesTo: [String] = []
+        /// Tables copied without rows; foreign keys into them become NOT VALID.
+        var relaxingReferencesToTables: [DatabaseCopier.Plan.Table] = []
     }
 
     private var pending: [UInt8] = []
@@ -756,9 +824,13 @@ final class DumpFilter: @unchecked Sendable {
     private let references: [[UInt8]]
 
     init(_ settings: Settings = .init()) {
-        references = settings.relaxingReferencesTo
-            .flatMap { ["REFERENCES \($0).", "REFERENCES \(DatabaseCopier.quoteIdentifier($0))."] }
-            .map { Array($0.utf8) }
+        // pg_dump quotes a name only when it has to, so look for both spellings.
+        let spellings = { (name: String) in [name, DatabaseCopier.quoteIdentifier(name)] }
+        let schemas = settings.relaxingReferencesTo.flatMap(spellings).map { "REFERENCES \($0)." }
+        let tables = settings.relaxingReferencesToTables.flatMap { table in
+            spellings(table.schema).flatMap { schema in spellings(table.name).map { "REFERENCES \(schema).\($0)(" } }
+        }
+        references = (schemas + tables).map { Array($0.utf8) }
     }
 
     func process(_ chunk: UnsafeRawBufferPointer) -> [UInt8] {

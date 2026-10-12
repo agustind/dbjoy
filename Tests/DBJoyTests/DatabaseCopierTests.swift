@@ -104,6 +104,37 @@ struct DatabaseCopierTests {
         }
     }
 
+    /// Customers come without rows, so the key from orders can't check the orders copied with them.
+    @Test func copiesSomeTablesWithoutRows() async throws {
+        try await SampleDatabaseLock.run {
+            try await makeTarget()
+            let source = try await connect("dbjoy_sample")
+            let target = try await connect(Self.target)
+            let plan = try await DatabaseCopier.plan(source: source, target: target)
+            await source.close()
+            await target.close()
+            let customers = DatabaseCopier.Plan.Table(schema: "public", name: "customers")
+            let listed = plan.dataTables(platformRows: false)
+            #expect(listed.map(\.table).contains(customers))
+            #expect(listed.allSatisfy { $0.bytes > 0 })
+
+            try await DatabaseCopier().run(from: endpoint("dbjoy_sample"), to: endpoint(Self.target), plan: plan,
+                                           options: .init(tablesWithoutData: [customers])) { _ in }
+            let copied = try await fingerprint(Self.target)
+            let sample = try await fingerprint("dbjoy_sample")
+            #expect(copied.contains("r public.customers rows=0"))
+            let others = { (lines: [String]) in lines.filter { !$0.hasPrefix("r public.customers ") } }
+            #expect(others(copied) == others(sample))
+            let db = try await connect(Self.target)
+            let keys = try await db.query("""
+                SELECT conname || ' ' || convalidated::text FROM pg_constraint WHERE contype = 'f' ORDER BY 1
+                """).rows.compactMap { $0[0] }
+            await db.close()
+            #expect(keys == ["order_items_order_id_fkey true", "order_items_product_id_fkey true",
+                             "orders_customer_id_fkey false"])
+        }
+    }
+
     @Test func unreadableSourceLeavesTargetAsItWas() async throws {
         try await SampleDatabaseLock.run {
             try await makeTarget()
@@ -271,6 +302,29 @@ struct DatabaseCopierTests {
         #expect(text.contains("REFERENCES auth.users(id) ON DELETE CASCADE NOT VALID;\n"))
         #expect(text.contains("REFERENCES public.customers(id);\n"))
         #expect(text.count == dump.count + " NOT VALID".count)
+    }
+
+    @Test func filterRelaxesForeignKeysIntoTablesWithoutRows() {
+        let dump = """
+            -- Name: a a_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+            ALTER TABLE ONLY public.a
+                ADD CONSTRAINT a_fkey FOREIGN KEY (b) REFERENCES public.customers(id);
+            -- Name: c c_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+            ALTER TABLE ONLY public.c
+                ADD CONSTRAINT c_fkey FOREIGN KEY (b) REFERENCES public.customers_archive(id);
+            -- Name: d d_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+            ALTER TABLE ONLY public.d
+                ADD CONSTRAINT d_fkey FOREIGN KEY (b) REFERENCES "Sales"."Order"(id);
+
+            """
+        let filter = DumpFilter(.init(relaxingReferencesToTables: [.init(schema: "public", name: "customers"),
+                                                                    .init(schema: "Sales", name: "Order")]))
+        var output = Array(dump.utf8).withUnsafeBytes { filter.process($0) }
+        output += filter.finish()
+        let text = String(decoding: output, as: UTF8.self)
+        #expect(text.contains("REFERENCES public.customers(id) NOT VALID;\n"))
+        #expect(text.contains("REFERENCES public.customers_archive(id);\n"))
+        #expect(text.contains("REFERENCES \"Sales\".\"Order\"(id) NOT VALID;\n"))
     }
 
     @Test func errorDetailDropsPsqlPrefixes() {
