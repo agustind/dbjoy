@@ -58,6 +58,7 @@ struct SSHTunnelFields: View {
     }
 
     private func chooseKey() {
+        guard FilePanels.available() else { return }
         let panel = NSOpenPanel()
         panel.title = "Choose SSH Private Key"
         panel.showsHiddenFiles = true

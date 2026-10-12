@@ -267,6 +267,7 @@ final class SchemaCompareModel {
     }
 
     func saveScript() {
+        guard FilePanels.available() else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "sql") ?? .plainText]
         let stamp = Date.now.formatted(.iso8601.year().month().day())

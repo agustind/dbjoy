@@ -94,7 +94,7 @@ final class ExportModel: Identifiable {
 
     /// Asks for a destination, then exports.
     func chooseDestinationAndStart() {
-        guard let workspace, kind == .dump || !selectedRefs.isEmpty else { return }
+        guard let workspace, kind == .dump || !selectedRefs.isEmpty, FilePanels.available() else { return }
         let stamp = Self.timestamp()
         switch kind {
         case .csv, .json:

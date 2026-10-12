@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when launched as a bare executable (swift run) rather than an .app bundle.
         NSApp.setActivationPolicy(.regular)
+        FilePanels.recordLaunch()
         AppearanceMode.current.apply()
         MCPServer.shared.applySettings()
         NSApp.activate()

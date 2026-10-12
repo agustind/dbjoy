@@ -380,6 +380,7 @@ final class WorkspaceModel {
     /// Asks for one or more .sql files and opens each in a query tab. `run` forces running
     /// (Run SQL File…); otherwise the dialog's "Run immediately" checkbox decides.
     func openSQLFiles(run: Bool? = nil) {
+        guard FilePanels.available() else { return }
         let panel = NSOpenPanel()
         panel.title = run == true ? "Run SQL File" : "Open SQL File"
         panel.prompt = run == true ? "Run" : "Open"
