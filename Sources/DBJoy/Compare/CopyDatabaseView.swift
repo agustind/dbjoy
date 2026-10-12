@@ -285,7 +285,7 @@ enum PlanSummary {
         var skipped: [String] = []
         if rows, !options.tablesWithoutData.isEmpty {
             let names = options.tablesWithoutData.map(\.description).sorted()
-            skipped.append("Rows of \(count(names.count, "table")) you left out: " + list(names)
+            skipped.append("Data of the tables you unchecked, which are created empty: " + list(names)
                 + ". Foreign keys into them don't check the copied rows")
         }
         if rows, !plan.skippedTableData.isEmpty {
@@ -344,11 +344,15 @@ private struct CopyTablesList: View {
                     .frame(width: 180)
                 Button("All") { model.setCopiesRows(true, of: tables.map(\.table)) }
                     .controlSize(.small)
-                    .help(filter.isEmpty ? "Copy the rows of every table" : "Copy the rows of the tables shown")
+                    .help(filter.isEmpty ? "Copy the data of every table" : "Copy the data of the tables shown")
                 Button("None") { model.setCopiesRows(false, of: tables.map(\.table)) }
                     .controlSize(.small)
-                    .help(filter.isEmpty ? "Copy only the structure of every table" : "Copy only the structure of the tables shown")
+                    .help(filter.isEmpty ? "Copy every table without data" : "Copy the tables shown without data")
             }
+            Text("Every table's structure is copied. The Data checkbox decides whether its rows come too: unchecked tables are created empty.")
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
             content
                 .frame(minHeight: 180, maxHeight: .infinity)
         }
@@ -369,14 +373,15 @@ private struct CopyTablesList: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             Table(tables, sortOrder: $sortOrder) {
-                TableColumn("Copy") { (item: DatabaseCopier.Plan.TableSize) in
+                TableColumn("Data") { (item: DatabaseCopier.Plan.TableSize) in
                     Toggle("Copy the rows of \(item.table.description)", isOn: Binding(
                         get: { model.copiesRows(of: item.table) },
                         set: { model.setCopiesRows($0, of: [item.table]) }))
                         .labelsHidden()
                         .accessibilityIdentifier("copy-rows-\(item.table.description)")
                         .help(platform.contains(item.table)
-                              ? "When off, the table keeps the target's rows" : "When off, the table is copied empty")
+                              ? "Copy this table's rows. When off, the table keeps the target's rows"
+                              : "Copy this table's rows. When off, the table is created empty")
                 }
                 .width(44)
                 TableColumn("Table", value: \.table.description) { item in
@@ -396,7 +401,7 @@ private struct CopyTablesList: View {
                 }
                 .width(90)
                 TableColumn("Size", value: \.bytes) { item in
-                    Text(ByteCountFormatter.string(fromByteCount: item.bytes, countStyle: .file))
+                    Text(Self.size(item.bytes))
                         .monospacedDigit()
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
@@ -411,9 +416,19 @@ private struct CopyTablesList: View {
         guard model.hasPlan, !all.isEmpty else { return "" }
         let copied = all.filter { model.copiesRows(of: $0.table) }
         let size = { (tables: [DatabaseCopier.Plan.TableSize]) in
-            ByteCountFormatter.string(fromByteCount: tables.reduce(0) { $0 + $1.bytes }, countStyle: .file)
+            Self.size(tables.reduce(0) { $0 + $1.bytes })
         }
-        return "Rows of \(copied.count) of \(all.count) tables, \(size(copied)) of \(size(all))"
+        return "Data of \(copied.count) of \(all.count) tables, \(size(copied)) of \(size(all))"
+    }
+}
+
+private extension CopyTablesList {
+    /// "0 bytes" rather than "Zero KB".
+    static func size(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowsNonnumericFormatting = false
+        return formatter.string(fromByteCount: bytes)
     }
 }
 
