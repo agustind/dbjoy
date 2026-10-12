@@ -45,6 +45,11 @@ final class DatabaseCopier: @unchecked Sendable {
         var includeData = true
         /// Copy owners and grants. The roles must exist on the target server.
         var keepOwnership = false
+        /// Also replace the rows of tables in skipped schemas (`Plan.platformTables`), such as
+        /// Supabase's auth.users. Off by default: the target keeps its users.
+        var includePlatformData = false
+
+        var copiesPlatformRows: Bool { includeData && includePlatformData }
     }
 
     struct Progress: Sendable {
@@ -95,6 +100,10 @@ final class DatabaseCopier: @unchecked Sendable {
         /// The source's event triggers that the target doesn't have. Event triggers aren't copied:
         /// only superusers can create them, and managed services install their own.
         var skippedEventTriggers: [String] = []
+        /// Foreign keys from copied tables to tables in skipped schemas, such as public.profiles → auth.users.
+        /// Unless the platform rows are copied too, they're added NOT VALID: existing rows may point at
+        /// rows the target doesn't have.
+        var foreignKeysIntoPlatform: [String] = []
         /// Publications in the target that belong to other roles and that the source also has. When
         /// there are any, publications aren't copied at all, since they can't be replaced.
         var keptPublications: [String] = []
@@ -247,6 +256,15 @@ final class DatabaseCopier: @unchecked Sendable {
             return Plan.Table(schema: parts[0], name: parts[1])
         }
 
+        plan.foreignKeysIntoPlatform = try await source.query("""
+            SELECT format('%I.%I → %I.%I', n.nspname, c.relname, rn.nspname, rc.relname)
+            FROM pg_constraint con
+            JOIN pg_class c ON c.oid = con.conrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+            JOIN pg_class rc ON rc.oid = con.confrelid JOIN pg_namespace rn ON rn.oid = rc.relnamespace
+            WHERE con.contype = 'f' AND rn.nspname = ANY($1::text[]) AND NOT n.nspname = ANY($1::text[])
+            ORDER BY 1
+            """, parameters: schemas).rows.compactMap { $0.first ?? nil }
+
         // Definitions come out schema-qualified with an empty search_path.
         _ = try await source.query("SET search_path = ''")
         defer { Task { _ = try? await source.query("RESET search_path") } }
@@ -272,7 +290,7 @@ final class DatabaseCopier: @unchecked Sendable {
 
     /// SQL that runs before the copy. It drops every schema the plan doesn't skip or clear, with
     /// everything in it, empties the cleared ones, and removes the user's large objects.
-    static func wipeScript(_ plan: Plan, includeData: Bool = true) -> String {
+    static func wipeScript(_ plan: Plan, copyPlatformRows: Bool = false) -> String {
         let literal = { (name: String) in "'" + name.replacingOccurrences(of: "'", with: "''") + "'" }
         let kept = (plan.skippedSchemaNames + plan.clearedSchemas).map(literal)
         let keep = kept.isEmpty ? "" : " AND nspname NOT IN (\(kept.joined(separator: ", ")))"
@@ -344,7 +362,7 @@ final class DatabaseCopier: @unchecked Sendable {
                 "END $dbjoy$;",
             ]
         }
-        if includeData, !plan.platformTables.isEmpty {
+        if copyPlatformRows, !plan.platformTables.isEmpty {
             lines.append("TRUNCATE " + plan.platformTables.map { quoteIdentifier($0.schema) + "." + quoteIdentifier($0.name) }
                 .joined(separator: ", ") + ";")
             // Load the platform rows without firing triggers or checking foreign keys, where allowed
@@ -468,22 +486,23 @@ final class DatabaseCopier: @unchecked Sendable {
     /// One part of what psql reads, in order: SQL written by DBJoy, or a pg_dump run's output.
     enum Segment: Equatable {
         case sql(String)
-        /// pg_dump's arguments, and whether its output goes through `DumpFilter`.
-        case dump([String], filtered: Bool)
+        /// pg_dump's arguments, and the `DumpFilter` its output goes through, if any.
+        case dump([String], filter: DumpFilter.Settings?)
     }
 
     static func segments(_ plan: Plan, options: Options) -> [Segment] {
-        var segments: [Segment] = [.sql(wipeScript(plan, includeData: options.includeData))]
-        if options.includeData, !plan.platformTables.isEmpty {
+        var segments: [Segment] = [.sql(wipeScript(plan, copyPlatformRows: options.copiesPlatformRows))]
+        if options.copiesPlatformRows, !plan.platformTables.isEmpty {
             segments.append(.dump(["--data-only", "--no-owner", "--no-privileges", "--verbose"]
                 + plan.platformTables.map { "--table=" + quoteIdentifier($0.schema) + "." + quoteIdentifier($0.name) },
-                filtered: false))
+                filter: nil))
             segments.append(.sql("SET session_replication_role = origin;\n"))
         }
         segments.append(.dump(["--format=plain", "--verbose"]
             + (options.keepOwnership ? [] : ["--no-owner", "--no-privileges"])
             + (options.includeData ? [] : ["--schema-only"])
-            + exclusionArguments(plan), filtered: true))
+            + exclusionArguments(plan),
+            filter: .init(relaxingReferencesTo: options.copiesPlatformRows ? [] : plan.skippedSchemaNames)))
         if !plan.platformTriggers.isEmpty || !plan.platformPolicies.isEmpty {
             segments.append(.sql(finishScript(plan)))
         }
@@ -564,7 +583,7 @@ final class DatabaseCopier: @unchecked Sendable {
                     if cancelled { throw CancellationError() }
                     throw Self.failure("Couldn't write to the target database.", output: await loadErrors.finalText())
                 }
-            case .dump(let arguments, let filtered):
+            case .dump(let arguments, let filterSettings):
                 let dump = Process()
                 dump.executableURL = pgDump
                 dump.arguments = source.arguments + arguments
@@ -589,7 +608,7 @@ final class DatabaseCopier: @unchecked Sendable {
                 }
                 let offset = step.bytes
                 let reachedEnd = await Self.pump(Data(), from: dumpOutput.fileHandleForReading.fileDescriptor, to: input,
-                                                 filter: filtered ? DumpFilter() : nil) {
+                                                 filter: filterSettings.map(DumpFilter.init)) {
                     step.setBytes(offset + $0)
                 }
                 // psql stopped reading (it failed); pg_dump may be blocked writing to the full pipe.
@@ -712,13 +731,29 @@ final class DatabaseCopier: @unchecked Sendable {
     }
 }
 
-/// Removes event triggers from pg_dump's plain output as it streams. Each object in the output
-/// starts with a `-- Name: …; Type: …` comment; lines from an event trigger's header to the next
-/// header are dropped. COPY data passes through untouched.
+/// Edits pg_dump's plain output as it streams. Each object in the output starts with a
+/// `-- Name: …; Type: …` comment. The filter drops event triggers (from their header to the next
+/// header) and adds NOT VALID to foreign keys that reference tables whose rows aren't copied.
+/// COPY data passes through untouched.
 final class DumpFilter: @unchecked Sendable {
+    struct Settings: Equatable {
+        /// Schemas whose rows aren't copied; foreign keys into them become NOT VALID.
+        var relaxingReferencesTo: [String] = []
+    }
+
     private var pending: [UInt8] = []
     private var inCopy = false
     private var skipping = false
+    private var inForeignKey = false
+    /// A foreign key statement being collected, up to its semicolon.
+    private var statement: [UInt8] = []
+    private let references: [[UInt8]]
+
+    init(_ settings: Settings = .init()) {
+        references = settings.relaxingReferencesTo
+            .flatMap { ["REFERENCES \($0).", "REFERENCES \(DatabaseCopier.quoteIdentifier($0))."] }
+            .map { Array($0.utf8) }
+    }
 
     func process(_ chunk: UnsafeRawBufferPointer) -> [UInt8] {
         pending.append(contentsOf: chunk)
@@ -727,8 +762,7 @@ final class DumpFilter: @unchecked Sendable {
         var start = 0
         pending.withUnsafeBufferPointer { bytes in
             while let end = bytes[start...].firstIndex(of: 0x0A) {
-                let line = UnsafeBufferPointer(rebasing: bytes[start...end])
-                if keep(line) { output.append(contentsOf: line) }
+                handle(UnsafeBufferPointer(rebasing: bytes[start...end]), into: &output)
                 start = end + 1
             }
         }
@@ -737,8 +771,12 @@ final class DumpFilter: @unchecked Sendable {
     }
 
     func finish() -> [UInt8] {
-        defer { pending = [] }
-        return pending.withUnsafeBufferPointer { keep($0) } ? pending : []
+        var output: [UInt8] = []
+        if !pending.isEmpty { pending.withUnsafeBufferPointer { handle($0, into: &output) } }
+        output += statement
+        pending = []
+        statement = []
+        return output
     }
 
     private static let header = Array("-- Name: ".utf8)
@@ -746,21 +784,50 @@ final class DumpFilter: @unchecked Sendable {
     private static let copy = Array("COPY ".utf8)
     private static let fromStdin = Array("FROM stdin;\n".utf8)
     private static let endOfCopy = Array("\\.\n".utf8)
+    private static let statementEnd = Array(";\n".utf8)
+    private static let notValid = Array(" NOT VALID;\n".utf8)
 
-    private func keep(_ line: UnsafeBufferPointer<UInt8>) -> Bool {
+    private func handle(_ line: UnsafeBufferPointer<UInt8>, into output: inout [UInt8]) {
         if inCopy {
             if line.elementsEqual(Self.endOfCopy) { inCopy = false }
-            return !skipping
+            if !skipping { output.append(contentsOf: line) }
+            return
         }
         if line.starts(with: Self.header) || line.starts(with: Self.dataHeader) {
+            output += statement
+            statement = []
             let text = String(decoding: line, as: UTF8.self)
             skipping = text.contains("; Type: EVENT TRIGGER;") || text.hasPrefix("-- Name: EVENT TRIGGER ")
-            return !skipping
+            inForeignKey = text.contains("; Type: FK CONSTRAINT;")
+            if !skipping { output.append(contentsOf: line) }
+            return
         }
         // psql meta-commands (\restrict, \unrestrict) always stay.
-        if line.first == UInt8(ascii: "\\") { return true }
+        if line.first == UInt8(ascii: "\\") {
+            output.append(contentsOf: line)
+            return
+        }
+        if skipping { return }
+        if inForeignKey, !references.isEmpty {
+            statement.append(contentsOf: line)
+            guard line.reversed().starts(with: Self.statementEnd.reversed()) else { return }
+            if references.contains(where: { statement.contains(subsequence: $0) }) {
+                statement.removeLast(Self.statementEnd.count)
+                statement += Self.notValid
+            }
+            output += statement
+            statement = []
+            return
+        }
         if line.starts(with: Self.copy), line.reversed().starts(with: Self.fromStdin.reversed()) { inCopy = true }
-        return !skipping
+        output.append(contentsOf: line)
+    }
+}
+
+private extension Array where Element == UInt8 {
+    func contains(subsequence needle: [UInt8]) -> Bool {
+        guard !needle.isEmpty, needle.count <= count else { return needle.isEmpty }
+        return (0...(count - needle.count)).contains { start in self[start..<start + needle.count].elementsEqual(needle) }
     }
 }
 

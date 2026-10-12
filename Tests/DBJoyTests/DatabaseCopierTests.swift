@@ -234,6 +234,33 @@ struct DatabaseCopierTests {
         #expect(text.contains("\\unrestrict abc"))
     }
 
+    @Test func filterRelaxesForeignKeysIntoSkippedSchemas() {
+        let dump = """
+            --
+            -- Name: profiles profiles_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+            --
+
+            ALTER TABLE ONLY public.profiles
+                ADD CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+            --
+            -- Name: orders orders_customer_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+            --
+
+            ALTER TABLE ONLY public.orders
+                ADD CONSTRAINT orders_customer_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id);
+
+            """
+        let filter = DumpFilter(.init(relaxingReferencesTo: ["auth"]))
+        var output = Array(dump.utf8).withUnsafeBytes { filter.process($0) }
+        output += filter.finish()
+        let text = String(decoding: output, as: UTF8.self)
+        #expect(text.contains("REFERENCES auth.users(id) ON DELETE CASCADE NOT VALID;\n"))
+        #expect(text.contains("REFERENCES public.customers(id);\n"))
+        #expect(text.count == dump.count + " NOT VALID".count)
+    }
+
     @Test func errorDetailDropsPsqlPrefixes() {
         let output = """
             psql:<stdin>:12: ERROR:  relation "x" already exists

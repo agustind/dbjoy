@@ -52,6 +52,12 @@ struct CopyDatabaseView: View {
                 Text("When off, only the structure is copied and the tables are empty.")
             }
             .accessibilityIdentifier("copy-include-data")
+            Toggle(isOn: $model.includePlatformData) {
+                Text("Copy rows in platform schemas")
+                Text("Such as Supabase's auth.users. When off, those tables keep the target's rows, and foreign keys that point into them don't check existing rows.")
+            }
+            .disabled(!model.includeData)
+            .accessibilityIdentifier("copy-platform-data")
             Toggle(isOn: $model.keepOwnership) {
                 Text("Copy owners and privileges")
                 Text("When off, the target's user owns everything and no grants are copied. When on, the source's roles must exist on the target server.")
@@ -67,7 +73,7 @@ struct CopyDatabaseView: View {
 
     private var notes: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("DBJoy drops every schema in the target, then copies the source in with pg_dump: schemas, tables, views, materialized views, functions, procedures, types, sequences, triggers, extensions and data. On managed services such as Supabase, schemas that belong to the platform stay, and their rows are copied where allowed. It all runs in one transaction, so if anything fails, the target stays as it was.")
+            Text("DBJoy drops every schema in the target, then copies the source in with pg_dump: schemas, tables, views, materialized views, functions, procedures, types, sequences, triggers, extensions and data. On managed services such as Supabase, schemas that belong to the platform (auth, storage, …) stay as they are. It all runs in one transaction, so if anything fails, the target stays as it was.")
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             if model.sameDatabase {
@@ -173,7 +179,7 @@ private struct ConfirmCopySheet: View {
             }
             Text("Everything in \(model.target.database) is deleted and replaced with a copy of \(model.source.database) from \(model.source.config?.displayName ?? "the source")\(model.includeData ? "" : ", without its data").")
                 .fixedSize(horizontal: false, vertical: true)
-            if !PlanSummary.sections(model.plan, includeData: model.includeData).isEmpty {
+            if !PlanSummary.sections(model.plan, rows: model.includeData, platformRows: model.includeData && model.includePlatformData).isEmpty {
                 skipped
             }
             Text("Type \(model.target.database) to confirm.")
@@ -202,7 +208,7 @@ private struct ConfirmCopySheet: View {
     private var skipped: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                ForEach(PlanSummary.sections(model.plan, includeData: model.includeData), id: \.title) { section in
+                ForEach(PlanSummary.sections(model.plan, rows: model.includeData, platformRows: model.includeData && model.includePlatformData), id: \.title) { section in
                     VStack(alignment: .leading, spacing: 3) {
                         Text(section.title)
                             .font(.callout.weight(.semibold))
@@ -235,7 +241,7 @@ enum PlanSummary {
         var lines: [String]
     }
 
-    static func sections(_ plan: DatabaseCopier.Plan, includeData: Bool) -> [Section] {
+    static func sections(_ plan: DatabaseCopier.Plan, rows: Bool, platformRows: Bool) -> [Section] {
         var sections: [Section] = []
         var kept: [String] = []
         let byReason = Dictionary(grouping: plan.skippedSchemas, by: \.reason)
@@ -246,10 +252,16 @@ enum PlanSummary {
         if !plan.skippedExtensions.isEmpty {
             kept.append("Extensions that belong to another role: " + list(plan.skippedExtensions))
         }
+        if rows, !platformRows, !plan.platformTables.isEmpty {
+            kept.append("The rows in those schemas, such as " + list(plan.platformTables.map(\.description), limit: 3))
+        }
+        if rows, !platformRows, !plan.foreignKeysIntoPlatform.isEmpty {
+            kept.append("Foreign keys into them don't check the copied rows: " + list(plan.foreignKeysIntoPlatform, limit: 3))
+        }
         if !kept.isEmpty { sections.append(Section(title: "Kept as they are in the target", lines: kept)) }
 
         var copied: [String] = []
-        if includeData, !plan.platformTables.isEmpty {
+        if platformRows, !plan.platformTables.isEmpty {
             copied.append("Rows of \(count(plan.platformTables.count, "table")): " + list(plan.platformTables.map(\.description)))
         }
         let triggers = plan.platformTriggers.count, policies = plan.platformPolicies.count
@@ -266,10 +278,10 @@ enum PlanSummary {
         }
 
         var skipped: [String] = []
-        if includeData, !plan.skippedTableData.isEmpty {
+        if rows, !plan.skippedTableData.isEmpty {
             skipped.append("Rows of extension tables: " + list(plan.skippedTableData.map(\.description)))
         }
-        if includeData, plan.skippedSchemaNames.contains(where: DatabaseCopier.platformSchemasWithoutData.contains) {
+        if platformRows, plan.skippedSchemaNames.contains(where: DatabaseCopier.platformSchemasWithoutData.contains) {
             skipped.append("Rows in storage: the files themselves live outside the database")
         }
         if !plan.skippedEventTriggers.isEmpty {

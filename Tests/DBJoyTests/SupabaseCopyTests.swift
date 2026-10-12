@@ -91,26 +91,16 @@ struct SupabaseCopyTests {
         ], port: Self.targetPort)
     }
 
-    @Test func copiesTheAppIntoAnotherProject() async throws {
-        try await setUp()
+    func plan() async throws -> DatabaseCopier.Plan {
         let source = try await connect(port: Self.sourcePort)
         let target = try await connect(port: Self.targetPort)
-        let plan = try await DatabaseCopier.plan(source: source, target: target)
-        await source.close()
-        await target.close()
-        #expect(plan.clearedSchemas == ["public"])
-        #expect(plan.skippedSchemaNames.contains("auth"))
-        #expect(plan.platformTables.map(\.description).contains("auth.users"))
-        #expect(!plan.platformTables.contains { $0.schema == "cron" })
-        // pg_cron's jobs stay behind: either its tables are skipped, or (when the target has pg_cron) its schema.
-        #expect(plan.skippedTableData.map(\.description).contains("cron.job") || plan.skippedSchemaNames.contains("cron"))
+        defer { Task { await source.close(); await target.close() } }
+        return try await DatabaseCopier.plan(source: source, target: target)
+    }
 
-        let warnings = try await DatabaseCopier().run(from: endpoint(port: Self.sourcePort), to: endpoint(port: Self.targetPort),
-                                                      plan: plan, options: .init()) { _ in }
-        #expect(warnings.isEmpty, "\(warnings)")
-
+    /// The app's schemas and data, and its triggers and policies on auth.users. Same in both tests.
+    func expectAppCopied() async throws {
         for query in ["SELECT id::text, name, embedding::text FROM public.profiles ORDER BY id",
-                      "SELECT id::text, email FROM auth.users ORDER BY id",
                       "SELECT count(*) FROM public.jobs",
                       "SELECT app.hello()",
                       "SELECT polname FROM pg_policy WHERE polrelid = 'auth.users'::regclass ORDER BY 1",
@@ -122,5 +112,40 @@ struct SupabaseCopyTests {
                                  port: Self.targetPort) == ["pg_cron", "vector"])
         // Production's scheduled jobs don't come along.
         #expect(try await values("SELECT count(*) FROM cron.job", port: Self.targetPort) == ["0"])
+    }
+
+    static let usersQuery = "SELECT id::text, email FROM auth.users ORDER BY id"
+    static let foreignKeyQuery = "SELECT convalidated::text FROM pg_constraint WHERE conname = 'profiles_id_fkey'"
+
+    /// The default: tables and data, while the target keeps its own users.
+    @Test func copiesTheAppAndKeepsTheTargetsUsers() async throws {
+        try await setUp()
+        let plan = try await plan()
+        #expect(plan.clearedSchemas == ["public"])
+        #expect(plan.skippedSchemaNames.contains("auth"))
+        #expect(plan.platformTables.map(\.description).contains("auth.users"))
+        #expect(!plan.platformTables.contains { $0.schema == "cron" })
+        #expect(plan.foreignKeysIntoPlatform == ["public.profiles → auth.users"])
+        // pg_cron's jobs stay behind: either its tables are skipped, or (when the target has pg_cron) its schema.
+        #expect(plan.skippedTableData.map(\.description).contains("cron.job") || plan.skippedSchemaNames.contains("cron"))
+
+        let usersBefore = try await values(Self.usersQuery, port: Self.targetPort)
+        let warnings = try await DatabaseCopier().run(from: endpoint(port: Self.sourcePort), to: endpoint(port: Self.targetPort),
+                                                      plan: plan, options: .init()) { _ in }
+        #expect(warnings.isEmpty, "\(warnings)")
+        try await expectAppCopied()
+        #expect(try await values(Self.usersQuery, port: Self.targetPort) == usersBefore)
+        // Profiles point at users the target doesn't have, so the key isn't checked against them.
+        #expect(try await values(Self.foreignKeyQuery, port: Self.targetPort) == ["false"])
+    }
+
+    @Test func copiesThePlatformRowsWhenAsked() async throws {
+        try await setUp()
+        let warnings = try await DatabaseCopier().run(from: endpoint(port: Self.sourcePort), to: endpoint(port: Self.targetPort),
+                                                      plan: try await plan(), options: .init(includePlatformData: true)) { _ in }
+        #expect(warnings.isEmpty, "\(warnings)")
+        try await expectAppCopied()
+        #expect(try await values(Self.usersQuery, port: Self.targetPort) == (try await values(Self.usersQuery, port: Self.sourcePort)))
+        #expect(try await values(Self.foreignKeyQuery, port: Self.targetPort) == ["true"])
     }
 }

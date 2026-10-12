@@ -16,6 +16,7 @@ final class CopyDatabaseModel: CompareSidesModel {
     let target = CompareSide()
     var includeData = true
     var keepOwnership = false
+    var includePlatformData = false
     private(set) var phase: Phase = .idle
     private(set) var progress = DatabaseCopier.Progress(step: "", bytes: 0)
     private(set) var startedAt = Date()
@@ -107,7 +108,8 @@ final class CopyDatabaseModel: CompareSidesModel {
 
     func copy() {
         guard canCopy, let from = source.toolEndpoint, let to = target.toolEndpoint else { return }
-        let options = DatabaseCopier.Options(includeData: includeData, keepOwnership: keepOwnership)
+        let options = DatabaseCopier.Options(includeData: includeData, keepOwnership: keepOwnership,
+                                             includePlatformData: includePlatformData)
         let plan = plan
         let summary = "\(source.database) (\(source.config?.displayName ?? "")) → \(target.database) (\(target.config?.displayName ?? ""))"
         phase = .copying

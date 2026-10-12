@@ -116,6 +116,10 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Owners and grants aren't copied by default, so the copy works between servers with different roles. Turn on
   Copy owners and privileges to keep them
 - Works across connections and servers, including through SSH tunnels, with the bundled pg_dump and psql
+- Works on managed services such as Supabase without changing roles: schemas that belong to the platform (auth,
+  storage, …) stay as they are, and `public` is emptied in place when it holds the platform's extensions. Foreign keys
+  into platform tables are added without checking the copied rows. Turn on Copy rows in platform schemas to also copy
+  rows such as `auth.users`
 
 ### Export
 - CSV or JSON (one file per table), or SQL `INSERT`s (one file, ordered by foreign keys, sequences reset)
