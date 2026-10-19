@@ -275,7 +275,11 @@ private struct FilterBar: View {
                     } else {
                         Spacer()
                     }
-                    Button { model.filters.removeAll { $0.id == filter.id } } label: { Image(systemName: "minus.circle") }
+                    Button {
+                        // Read the id first: `filter` reads through `model.filters`, which removeAll is mutating.
+                        let id = filter.id
+                        model.filters.removeAll { $0.id == id }
+                    } label: { Image(systemName: "minus.circle") }
                         .buttonStyle(.borderless)
                         .help("Remove condition")
                     Button {
