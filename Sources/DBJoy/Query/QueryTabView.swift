@@ -144,8 +144,22 @@ private struct ResultsPane: View {
     @Bindable var model: QueryTabModel
     @State private var selectedRows = IndexSet()
     @State private var showMessages = false
+    @State private var copiedForAI = false
 
     private static let messagesKey = "messages"
+
+    private func copyForAI(_ result: QueryResult) {
+        let text = ExportEncoding.markdownForAI(result, rowIndices: selectedRows.isEmpty ? nil : Array(selectedRows),
+                                                databaseKind: model.workspace?.config.kind ?? .postgres,
+                                                database: model.workspace?.currentDatabase ?? "")
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copiedForAI = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            copiedForAI = false
+        }
+    }
 
     private var tabItems: [(value: String, title: String)] {
         var items = model.results.enumerated().map { index, result in
@@ -175,6 +189,15 @@ private struct ResultsPane: View {
                 UnderlineTabs(items: tabItems, selection: tabSelection)
                 Spacer()
                 status
+                if !showMessages, let result = model.selectedResult {
+                    Button { copyForAI(result) } label: {
+                        Label(copiedForAI ? "Copied" : "Copy for AI", systemImage: copiedForAI ? "checkmark" : "sparkles")
+                    }
+                    .buttonStyle(.ghost)
+                    .help(selectedRows.isEmpty
+                          ? "Copy the query and its rows as Markdown to paste into an AI chat"
+                          : "Copy the query and the selected rows as Markdown to paste into an AI chat")
+                }
             }
             .padding(.horizontal, 16)
             .frame(height: 44)

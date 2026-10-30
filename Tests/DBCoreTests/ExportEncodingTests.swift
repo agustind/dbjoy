@@ -39,3 +39,39 @@ struct ExportEncodingTests {
         #expect(order.count == 5)
     }
 }
+
+struct MarkdownForAITests {
+    let result = QueryResult(columns: [ResultColumn(name: "id", typeName: "int4", category: .number),
+                                       ResultColumn(name: "note", typeName: "text", category: .text)],
+                             rows: [["1", "a|b"], ["2", nil], ["3", "two\nlines"]],
+                             statement: "SELECT id, note FROM t;\n")
+
+    @Test func allRows() {
+        #expect(ExportEncoding.markdownForAI(result, databaseKind: .postgres, database: "shop") == """
+            PostgreSQL query on database `shop`:
+
+            ```sql
+            SELECT id, note FROM t;
+            ```
+
+            Result: 3 rows.
+
+            Columns: id (int4), note (text)
+
+            | id | note |
+            | --- | --- |
+            | 1 | a\\|b |
+            | 2 | NULL |
+            | 3 | two<br>lines |
+
+            """)
+    }
+
+    @Test func selectionAndLimits() {
+        let text = ExportEncoding.markdownForAI(result, rowIndices: [2, 0], databaseKind: .postgres, database: "shop",
+                                                rowLimit: 1, cellLimit: 3)
+        #expect(text.contains("Result: 2 rows selected out of 3. Showing the first 1.\n"))
+        #expect(text.contains("| 3 | two… (9 characters) |\n"))
+        #expect(!text.contains("| 1 |"))
+    }
+}

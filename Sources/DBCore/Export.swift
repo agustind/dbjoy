@@ -89,6 +89,50 @@ public enum ExportEncoding {
             + values.joined(separator: ",\n") + ";\n"
     }
 
+    // MARK: Markdown
+
+    /// A query result as Markdown to paste into an AI chat: the database, the SQL, the column
+    /// types and a table of rows. `rowIndices` limits it to selected rows. Copies at most
+    /// `rowLimit` rows and shortens cells over `cellLimit` characters, and says when it does.
+    public static func markdownForAI(_ result: QueryResult, rowIndices: [Int]? = nil, databaseKind: DatabaseKind,
+                                     database: String, rowLimit: Int = 500, cellLimit: Int = 500) -> String {
+        func rowCount(_ n: Int) -> String { n == 1 ? "1 row" : "\(n) rows" }
+
+        var out = "\(databaseKind.displayName) query on database `\(database)`:\n\n"
+        if let sql = result.statement?.trimmingCharacters(in: .whitespacesAndNewlines), !sql.isEmpty {
+            out += "```sql\n\(sql)\n```\n\n"
+        }
+
+        let indices = rowIndices ?? Array(result.rows.indices)
+        var summary = rowIndices == nil
+            ? "Result: \(rowCount(result.rows.count))"
+            : "Result: \(rowCount(indices.count)) selected out of \(result.rows.count)"
+        if result.truncated { summary += " (the query returned more; DBJoy kept the first \(result.rows.count))" }
+        summary += "."
+        if indices.count > rowLimit { summary += " Showing the first \(rowLimit)." }
+        out += summary + "\n\n"
+
+        out += "Columns: " + result.columns.map { "\($0.name) (\($0.typeName))" }.joined(separator: ", ") + "\n\n"
+
+        func cell(_ value: String?) -> String {
+            guard let value else { return "NULL" }
+            var text = value
+            if text.count > cellLimit { text = String(text.prefix(cellLimit)) + "… (\(value.count) characters)" }
+            return text.replacingOccurrences(of: "|", with: "\\|")
+                .replacingOccurrences(of: "\r\n", with: "<br>")
+                .replacingOccurrences(of: "\n", with: "<br>")
+                .replacingOccurrences(of: "\r", with: "<br>")
+        }
+        func line(_ cells: [String]) -> String { "| " + cells.joined(separator: " | ") + " |\n" }
+
+        out += line(result.columns.map { cell($0.name) })
+        out += line(result.columns.map { _ in "---" })
+        for index in indices.prefix(rowLimit) where result.rows.indices.contains(index) {
+            out += line(result.rows[index].map(cell))
+        }
+        return out
+    }
+
     /// Orders tables so referenced tables come before the tables that reference them.
     /// Cycles fall back to name order.
     public static func dependencyOrder(_ tables: [ObjectRef], foreignKeys: [ForeignKeyInfo]) -> [ObjectRef] {
