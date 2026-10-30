@@ -92,28 +92,85 @@ public enum ExportEncoding {
     // MARK: Markdown
 
     /// A query result as Markdown to paste into an AI chat: the database, the SQL, the column
-    /// types and a table of rows. `rowIndices` limits it to selected rows. Copies at most
-    /// `rowLimit` rows and shortens cells over `cellLimit` characters, and says when it does.
-    public static func markdownForAI(_ result: QueryResult, rowIndices: [Int]? = nil, databaseKind: DatabaseKind,
-                                     database: String, rowLimit: Int = 500, cellLimit: Int = 500) -> String {
-        func rowCount(_ n: Int) -> String { n == 1 ? "1 row" : "\(n) rows" }
-
+    /// types and a table of rows. `rowIndices` limits it to selected rows; otherwise `order`
+    /// gives the order of all rows (after a sort). Copies at most `rowLimit` rows and shortens
+    /// cells over `cellLimit` characters, and says when it does.
+    public static func markdownForAI(_ result: QueryResult, rowIndices: [Int]? = nil, order: [Int]? = nil,
+                                     databaseKind: DatabaseKind, database: String,
+                                     rowLimit: Int = 500, cellLimit: Int = 500) -> String {
         var out = "\(databaseKind.displayName) query on database `\(database)`:\n\n"
         if let sql = result.statement?.trimmingCharacters(in: .whitespacesAndNewlines), !sql.isEmpty {
             out += "```sql\n\(sql)\n```\n\n"
         }
 
-        let indices = rowIndices ?? Array(result.rows.indices)
+        let indices = rowIndices ?? order ?? Array(result.rows.indices)
         var summary = rowIndices == nil
-            ? "Result: \(rowCount(result.rows.count))"
-            : "Result: \(rowCount(indices.count)) selected out of \(result.rows.count)"
+            ? "Result: \(rowCountText(result.rows.count))"
+            : "Result: \(rowCountText(indices.count)) selected out of \(result.rows.count)"
         if result.truncated { summary += " (the query returned more; DBJoy kept the first \(result.rows.count))" }
         summary += "."
         if indices.count > rowLimit { summary += " Showing the first \(rowLimit)." }
         out += summary + "\n\n"
 
         out += "Columns: " + result.columns.map { "\($0.name) (\($0.typeName))" }.joined(separator: ", ") + "\n\n"
+        out += markdownTable(columns: result.columns, rows: indices.prefix(rowLimit).compactMap {
+            result.rows.indices.contains($0) ? result.rows[$0] : nil
+        }, cellLimit: cellLimit)
+        return out
+    }
 
+    /// A table's structure and some of its rows as Markdown to paste into an AI chat.
+    /// `rows` are the rows to include; `selected` says whether they are a selection
+    /// or the page shown, and `query` is the SELECT that loaded that page.
+    public static func markdownForAI(table structure: TableStructure, foreignKeys: [ForeignKeyInfo],
+                                     columns: [ResultColumn], rows: [[String?]], selected: Bool,
+                                     totalRows: RowCount?, query: String?, databaseKind: DatabaseKind,
+                                     database: String, rowLimit: Int = 500, cellLimit: Int = 500) -> String {
+        var out = "\(databaseKind.displayName) table `\(structure.ref)` in database `\(database)`.\n\n"
+        if let comment = structure.comment, !comment.isEmpty { out += "Comment: \(comment)\n\n" }
+
+        out += "Columns:\n"
+        for column in structure.columns {
+            var notes = [column.dataType]
+            if column.isPrimaryKey { notes.append("primary key") }
+            notes.append(column.isNullable ? "nullable" : "not null")
+            if column.isIdentity { notes.append("identity") } else if column.isGenerated { notes.append("generated") }
+            if let value = column.defaultValue { notes.append("default \(value)") }
+            for fk in foreignKeys where fk.columns.contains(column.name) {
+                let index = fk.columns.firstIndex(of: column.name)!
+                let target = index < fk.referencedColumns.count ? fk.referencedColumns[index] : fk.referencedColumns.joined(separator: ", ")
+                notes.append("references \(fk.referencedTable)(\(target))")
+            }
+            if let values = column.allowedValues { notes.append("one of " + values.joined(separator: ", ")) }
+            if let comment = column.comment, !comment.isEmpty { notes.append("comment: \(comment)") }
+            out += "- \(column.name): " + notes.joined(separator: ", ") + "\n"
+        }
+        let constraints = structure.constraints.filter { $0.type != .primaryKey && $0.type != .foreignKey }
+        if !constraints.isEmpty {
+            out += "\nConstraints:\n" + constraints.map { "- \($0.name): \($0.definition)\n" }.joined()
+        }
+        let indexes = structure.indexes.filter { $0.constraintName == nil }
+        if !indexes.isEmpty {
+            out += "\nIndexes:\n" + indexes.map { "- \($0.definition)\n" }.joined()
+        }
+
+        let total = totalRows.map { "\($0.isEstimate ? "about " : "")\($0.value)" }
+        var summary = selected ? "\nRows: \(rowCountText(rows.count)) selected" : "\nRows: \(rowCountText(rows.count)) shown"
+        if let total { summary += " out of \(total) in the table" }
+        summary += "."
+        if rows.count > rowLimit { summary += " Showing the first \(rowLimit)." }
+        out += summary + "\n\n"
+        if let query = query?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty, !selected {
+            out += "Loaded with:\n\n```sql\n\(query)\n```\n\n"
+        }
+        out += markdownTable(columns: columns, rows: Array(rows.prefix(rowLimit)), cellLimit: cellLimit)
+        return out
+    }
+
+    private static func rowCountText(_ n: Int) -> String { n == 1 ? "1 row" : "\(n) rows" }
+
+    /// A GitHub-flavored Markdown table. NULL is written as `NULL`, pipes are escaped and line breaks become `<br>`.
+    private static func markdownTable(columns: [ResultColumn], rows: [[String?]], cellLimit: Int) -> String {
         func cell(_ value: String?) -> String {
             guard let value else { return "NULL" }
             var text = value
@@ -125,11 +182,9 @@ public enum ExportEncoding {
         }
         func line(_ cells: [String]) -> String { "| " + cells.joined(separator: " | ") + " |\n" }
 
-        out += line(result.columns.map { cell($0.name) })
-        out += line(result.columns.map { _ in "---" })
-        for index in indices.prefix(rowLimit) where result.rows.indices.contains(index) {
-            out += line(result.rows[index].map(cell))
-        }
+        var out = line(columns.map { cell($0.name) })
+        out += line(columns.map { _ in "---" })
+        for row in rows { out += line(row.map(cell)) }
         return out
     }
 

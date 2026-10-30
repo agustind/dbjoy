@@ -29,6 +29,8 @@ final class QueryTabModel: Identifiable {
     var selection = NSRange(location: 0, length: 0)
     /// Set to move the editor selection, e.g. to an error position.
     var requestedSelection: NSRange?
+    /// Set to change editor text undoably, e.g. to format SQL.
+    var requestedReplacement: TextReplacement?
 
     private var connection: (any DatabaseConnection)?
     var isRunning = false
@@ -37,6 +39,13 @@ final class QueryTabModel: Identifiable {
     var messages: [QueryMessage] = []
     var transactionStatus: TransactionStatus = .idle
     var lastDuration: TimeInterval?
+    /// The SQL of the last run, for asking the assistant about its error.
+    var lastRunSQL: String?
+    /// The plan from the last Explain, and the statement it explains.
+    var plan: QueryPlan?
+    var planStatement: String?
+    /// Bumped when a new plan arrives so the results pane shows it.
+    var planRequest = 0
     var isSaveSheetPresented = false
     /// Share of the tab's height given to the editor; results get the rest.
     var editorFraction: CGFloat = 0.4
@@ -96,6 +105,7 @@ final class QueryTabModel: Identifiable {
             return
         }
         let result = await connection.execute(text, maxRows: Self.maxRows)
+        lastRunSQL = text
         lastDuration = result.duration
         transactionStatus = result.transactionStatus
 
@@ -141,6 +151,71 @@ final class QueryTabModel: Identifiable {
 
     func cancel() {
         connection?.cancel()
+    }
+
+    // MARK: Explain
+
+    /// Shows the plan of the statement under the cursor or the selection. Runs it with ANALYZE
+    /// (executing it) only when it can't change data; other statements get the planner's estimates.
+    @discardableResult
+    func explain() -> Task<Void, Never>? {
+        guard !isRunning, let (text, _) = sqlToRun(.current), let workspace else { return nil }
+        let statements = SQLSplitter.split(text)
+        guard statements.count == 1, let statement = statements.first?.text else {
+            messages = [QueryMessage(kind: .error, text: "Explain works on one statement. Put the cursor in it or select it.")]
+            return nil
+        }
+        guard SQLLexer.firstKeyword(in: statement) != "EXPLAIN" else {
+            messages = [QueryMessage(kind: .error, text: "This statement is already an EXPLAIN. Run it to see its output.")]
+            return nil
+        }
+        let analyze = !(workspace.dialect?.isWriteStatement(statement) ?? true)
+        let sql = "EXPLAIN (\(analyze ? "ANALYZE, BUFFERS, " : "")FORMAT JSON) \(statement)"
+        return Task { await runExplain(sql, statement: statement) }
+    }
+
+    private func runExplain(_ sql: String, statement: String) async {
+        isRunning = true
+        defer { isRunning = false }
+        do {
+            let connection = try await session()
+            let result = await connection.execute(sql, maxRows: 10)
+            lastRunSQL = statement
+            lastDuration = result.duration
+            transactionStatus = result.transactionStatus
+            if let error = result.error {
+                messages = [QueryMessage(kind: .error, text: error.fullDescription)]
+                return
+            }
+            guard let json = result.results.first?.rows.first?.first ?? nil else {
+                throw DatabaseError("The server didn't return a plan.")
+            }
+            plan = try QueryPlan(json: json)
+            planStatement = statement
+            planRequest += 1
+        } catch {
+            messages = [QueryMessage(kind: .error, text: error.localizedDescription)]
+        }
+    }
+
+    // MARK: Formatting
+
+    /// Formats the selection, or the statement under the cursor, in place. Undo reverts it.
+    /// Returns false when there was nothing to format.
+    @discardableResult
+    func formatSQL() -> Bool {
+        let ns = sql as NSString
+        let range: NSRange
+        if selection.length > 0, NSMaxRange(selection) <= ns.length {
+            range = selection
+        } else if let statement = SQLSplitter.statement(at: selection.location, in: sql) {
+            range = NSRange(location: statement.range.lowerBound, length: statement.range.count)
+        } else {
+            return false
+        }
+        guard let formatted = SQLFormatter.format(ns.substring(with: range)) else { return false }
+        requestedReplacement = TextReplacement(range: range, text: formatted)
+        return true
     }
 
     // MARK: Files

@@ -48,6 +48,7 @@ struct TableTabView: View {
                     }
                     .buttonStyle(.outline(active: model.isInspectorVisible))
                     .help("Show and edit the selected rows")
+                    CopyForAIButton(model: model)
                     Spacer()
                     Pager(model: model)
                 }
@@ -158,7 +159,8 @@ private struct DataPane: View {
                     sort: { model.toggleSort($0) },
                     filter: { model.filter(column: $0, equals: $1) },
                     followForeignKey: { followForeignKey(column: $0, value: $1) },
-                    copyAsInsert: { insertStatements(rows: $0) }),
+                    copyAsInsert: { insertStatements(rows: $0) },
+                    copyForAI: { model.markdownForAI(rows: $0) }),
                 columnOptions: { model.options(forColumn: $0) },
                 isColumnEditable: { model.isColumnEditable($0) },
                 isColumnNullable: { model.isColumnNullable($0) })
@@ -241,6 +243,31 @@ private struct DataPane: View {
             let values = model.columns.indices.map { ColumnValue(model.columns[$0].name, model.value(row: row, column: $0).value) }
             return dialect.statement(for: .insert(values: values), in: model.ref)
         }.joined(separator: "\n")
+    }
+}
+
+/// Copies the table's structure and the selected rows (or the page) for an AI chat.
+private struct CopyForAIButton: View {
+    var model: TableTabModel
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(model.markdownForAI(rows: model.selectedRows), forType: .string)
+            copied = true
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
+                copied = false
+            }
+        } label: {
+            Label(copied ? "Copied" : "Copy for AI", systemImage: copied ? "checkmark" : "doc.on.doc")
+        }
+        .buttonStyle(.outline)
+        .help(model.selectedRows.isEmpty
+              ? "Copy the table's structure and the rows on this page as Markdown to paste into an AI chat"
+              : "Copy the table's structure and the selected rows as Markdown to paste into an AI chat")
+        .disabled(model.structure == nil)
     }
 }
 

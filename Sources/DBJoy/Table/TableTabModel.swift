@@ -187,6 +187,18 @@ final class TableTabModel: Identifiable {
         }
     }
 
+    /// The table's structure and some rows as Markdown for an AI chat: the given rows,
+    /// or the whole page when none are given. Staged edits and new rows aren't included.
+    func markdownForAI(rows selection: IndexSet) -> String {
+        guard let structure else { return "" }
+        let indices = selection.isEmpty ? Array(rows.indices) : selection.filter { $0 < rows.count }
+        return ExportEncoding.markdownForAI(table: structure, foreignKeys: outgoingForeignKeys, columns: columns,
+                                            rows: indices.map { rows[$0] }, selected: !selection.isEmpty,
+                                            totalRows: rowCount, query: lastSQL,
+                                            databaseKind: workspace?.config.kind ?? .postgres,
+                                            database: workspace?.currentDatabase ?? "")
+    }
+
     /// ⌘F: show the search bar and focus its value field.
     func showSearch() {
         mode = .data

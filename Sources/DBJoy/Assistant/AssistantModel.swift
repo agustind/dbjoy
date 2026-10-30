@@ -55,10 +55,21 @@ final class AssistantModel {
     static let maxRows = 1000
     private static let maxSteps = 30
 
+    /// Context sent along with the next message, such as a query result or an error.
+    /// The chat shows its title; the model gets its text.
+    struct Attachment: Equatable {
+        let id = UUID()
+        /// What it is, for the composer's placeholder, e.g. "result".
+        var kind: String
+        var title: String
+        var text: String
+    }
+
     @ObservationIgnored weak var workspace: WorkspaceModel?
     @ObservationIgnored let library: ChatLibrary
     var items: [ChatItem] = []
     var draft = ""
+    var attachment: Attachment?
     private(set) var isRunning = false
     /// The saved chat on screen; set when its first message is sent.
     private(set) var chatID: UUID?
@@ -92,13 +103,16 @@ final class AssistantModel {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isRunning else { return }
         draft = ""
-        items.append(ChatItem(kind: .user(text)))
+        let attachment = attachment
+        self.attachment = nil
+        items.append(ChatItem(kind: .user(attachment.map { "\(text)\n\nAttached: \($0.title)" } ?? text)))
         if chatID == nil { chatID = UUID() }
         persist()
         isRunning = true
         let id = chatID
+        let message = attachment.map { "\(text)\n\n\($0.text)" } ?? text
         task = Task { [weak self] in
-            await self?.respond(to: text)
+            await self?.respond(to: message)
             self?.isRunning = false
             // Skip if another chat was opened meanwhile.
             if self?.chatID == id { self?.persist() }

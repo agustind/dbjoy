@@ -33,6 +33,12 @@ struct AssistantPanel: View {
             isComposerFocused = true
         }
         .onChange(of: provider) { refreshKey() }
+        .onChange(of: model.attachment?.id) { _, id in
+            if id != nil {
+                showsChats = false
+                isComposerFocused = true
+            }
+        }
         // Pick up a key added in the Settings window when coming back.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in refreshKey() }
     }
@@ -136,8 +142,23 @@ struct AssistantPanel: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let attachment = model.attachment {
+                HStack(spacing: 6) {
+                    Image(systemName: "paperclip").foregroundStyle(Theme.accentText)
+                    Text(attachment.title).lineLimit(1).truncationMode(.middle).foregroundStyle(Theme.textPrimary)
+                    Spacer(minLength: 0)
+                    Button { model.attachment = nil } label: { Image(systemName: "xmark") }
+                        .buttonStyle(.ghost)
+                        .help("Don't attach this")
+                }
+                .font(.system(size: 12))
+                .padding(.leading, 10)
+                .background(Theme.accentFill, in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.accentStroke, lineWidth: 1))
+            }
             HStack(alignment: .bottom, spacing: 8) {
-                TextField("Ask about your data…", text: $model.draft, axis: .vertical)
+                TextField(model.attachment == nil ? "Ask about your data…" : "Ask about the attached \(model.attachment!.kind)…",
+                          text: $model.draft, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .lineLimit(1...8)

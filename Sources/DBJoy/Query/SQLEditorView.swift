@@ -2,10 +2,18 @@ import AppKit
 import DBCore
 import SwiftUI
 
+/// A change to make in the editor as if typed, so Undo reverts it.
+struct TextReplacement: Equatable {
+    let id = UUID()
+    var range: NSRange
+    var text: String
+}
+
 struct SQLEditorView: NSViewRepresentable {
     @Binding var text: String
     @Binding var selection: NSRange
     @Binding var requestedSelection: NSRange?
+    var requestedReplacement: Binding<TextReplacement?> = .constant(nil)
     var isEditable = true
     var catalog: () -> CompletionCatalog = { CompletionCatalog() }
     var onRun: (QueryTabModel.Scope) -> Void = { _ in }
@@ -85,12 +93,21 @@ struct SQLEditorView: NSViewRepresentable {
             textView.window?.makeFirstResponder(textView)
             DispatchQueue.main.async { self.requestedSelection = nil }
         }
+        if let replacement = requestedReplacement.wrappedValue, context.coordinator.appliedReplacement != replacement.id {
+            context.coordinator.appliedReplacement = replacement.id
+            // Outside the view update: the edit writes back to `text`.
+            DispatchQueue.main.async {
+                requestedReplacement.wrappedValue = nil
+                textView.replace(replacement)
+            }
+        }
     }
 
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: SQLEditorView
         weak var textView: SQLTextView?
+        var appliedReplacement: UUID?
 
         init(parent: SQLEditorView) {
             self.parent = parent
@@ -255,6 +272,17 @@ final class SQLTextView: NSTextView {
             didChangeText()
             setSelectedRange(NSRange(location: lines.location, length: (replacement as NSString).length))
         }
+    }
+
+    func replace(_ replacement: TextReplacement) {
+        guard NSMaxRange(replacement.range) <= (string as NSString).length,
+              shouldChangeText(in: replacement.range, replacementString: replacement.text) else { return }
+        replaceCharacters(in: replacement.range, with: replacement.text)
+        didChangeText()
+        let range = NSRange(location: replacement.range.location, length: (replacement.text as NSString).length)
+        setSelectedRange(range)
+        scrollRangeToVisible(range)
+        window?.makeFirstResponder(self)
     }
 
     // MARK: Completion

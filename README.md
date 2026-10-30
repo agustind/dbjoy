@@ -65,6 +65,8 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 
 ### Data
 - Paged grid with column sorting, a row details panel for long values, and copy as TSV or INSERT
+- Copy for AI: copies the table's columns, keys, constraints and indexes with the selected rows (or the page) as
+  Markdown to paste into an AI chat
 - Batch editing: select several rows and open **Row details** to change a field on all of them at once
 - ⌘F search by field and operator (contains, equals, ranges, IN, IS NULL, raw SQL…) with editable results
 - Jump from a foreign-key value to the row it references
@@ -88,6 +90,15 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Syntax highlighting, line numbers, and completion that understands table aliases
 - ⌘↩ runs the statement under the cursor or the selection, ⇧⌘↩ runs everything, ⌘. cancels
 - Multiple result sets, server notices, and error positions that move the cursor
+- Sort results by clicking a column header (sorts the loaded rows without running the query again), see the selected
+  rows in a details panel with formatted JSON, and export them to CSV or JSON
+- Copy for AI copies the query, its column types and the rows as Markdown. Ask AI attaches them to a message to the
+  assistant, and Fix with AI sends a failed query with its error and asks for a corrected one
+- Explain (⌥⌘↩) shows the statement's plan as a tree, with each step's share of the time, the slowest steps
+  highlighted and row estimates that are off by 10× or more flagged. Statements that can change data are planned
+  without running them. Explain with AI asks the assistant where the time goes
+- Format SQL (⌘I) puts each clause, select item and AND/OR condition on its own line and uppercases keywords, for the
+  selection or the statement under the cursor; Undo reverts it
 - Each query tab has its own connection with Begin / Commit / Rollback and a live transaction indicator
 - Saved queries (per connection or shared) and per-connection history
 - Open `.sql` files (⌘O, or drag them onto a query tab) and optionally run them right away; Run SQL File… (⇧⌘O)

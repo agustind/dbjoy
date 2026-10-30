@@ -353,6 +353,19 @@ final class WorkspaceModel {
         isAssistantVisible.toggle()
     }
 
+    /// Shows the assistant with context attached to the next message. With a question, sends it
+    /// right away; otherwise the user types one.
+    func askAssistant(_ question: String? = nil, attaching attachment: AssistantModel.Attachment) {
+        if assistant == nil { assistant = AssistantModel(workspace: self, library: chatLibrary) }
+        guard let assistant else { return }
+        isAssistantVisible = true
+        assistant.attachment = attachment
+        if let question, !assistant.isRunning {
+            assistant.draft = question
+            assistant.send()
+        }
+    }
+
     /// Opens SQL in a new query tab and runs it, e.g. to see an assistant result in full.
     func runInNewQuery(_ sql: String, title: String? = nil) {
         newQuery(sql: sql, title: title)

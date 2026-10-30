@@ -75,3 +75,57 @@ struct MarkdownForAITests {
         #expect(!text.contains("| 1 |"))
     }
 }
+
+struct ResultSortingTests {
+    let result = QueryResult(columns: [ResultColumn(name: "n", typeName: "int4", category: .number),
+                                       ResultColumn(name: "s", typeName: "text", category: .text)],
+                             rows: [["10", "file10"], [nil, "b"], ["9", "file9"], ["10", nil], ["-1", "A"]])
+
+    @Test func numbersNumericallyAndNullsLast() {
+        #expect(result.rowOrder(sortedBy: 0, ascending: true) == [4, 2, 0, 3, 1])
+        #expect(result.rowOrder(sortedBy: 0, ascending: false) == [0, 3, 2, 4, 1])
+    }
+
+    @Test func textInFinderOrder() {
+        #expect(result.rowOrder(sortedBy: 1, ascending: true) == [4, 1, 2, 0, 3])
+    }
+}
+
+struct TableMarkdownForAITests {
+    @Test func structureAndRows() {
+        let ref = ObjectRef(schema: "public", name: "orders", kind: .table)
+        let structure = TableStructure(
+            ref: ref,
+            columns: [ColumnInfo(name: "id", dataType: "integer", isNullable: false, isPrimaryKey: true, isIdentity: true),
+                      ColumnInfo(name: "customer_id", dataType: "integer"),
+                      ColumnInfo(name: "status", dataType: "text", isNullable: false, defaultValue: "'new'::text",
+                                 allowedValues: ["new", "paid"])],
+            indexes: [IndexInfo(name: "orders_status_idx", columns: ["status"], isUnique: false, isPrimary: false, method: "btree",
+                                definition: "CREATE INDEX orders_status_idx ON public.orders USING btree (status)")],
+            constraints: [ConstraintInfo(name: "orders_pkey", type: .primaryKey, definition: "PRIMARY KEY (id)")])
+        let fk = ForeignKeyInfo(name: "orders_customer_fk", table: ref, columns: ["customer_id"],
+                                referencedTable: ObjectRef(schema: "public", name: "customers", kind: .table), referencedColumns: ["id"])
+        let columns = structure.columns.map { ResultColumn(name: $0.name, typeName: $0.dataType, category: .text) }
+        let text = ExportEncoding.markdownForAI(table: structure, foreignKeys: [fk], columns: columns, rows: [["1", "7", "paid"]],
+                                                selected: true, totalRows: RowCount(value: 1200, isEstimate: true),
+                                                query: "SELECT * FROM orders", databaseKind: .postgres, database: "shop")
+        #expect(text == """
+            PostgreSQL table `public.orders` in database `shop`.
+
+            Columns:
+            - id: integer, primary key, not null, identity
+            - customer_id: integer, nullable, references public.customers(id)
+            - status: text, not null, default 'new'::text, one of new, paid
+
+            Indexes:
+            - CREATE INDEX orders_status_idx ON public.orders USING btree (status)
+
+            Rows: 1 row selected out of about 1200 in the table.
+
+            | id | customer_id | status |
+            | --- | --- | --- |
+            | 1 | 7 | paid |
+
+            """)
+    }
+}

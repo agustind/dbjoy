@@ -162,6 +162,12 @@ struct AppCommands: Commands {
             Button("Run All") { queryTab?.run(.all) }
                 .keyboardShortcut(.return, modifiers: [.command, .shift])
                 .disabled(queryTab == nil)
+            Button("Explain Current Statement") { queryTab?.explain() }
+                .keyboardShortcut(.return, modifiers: [.command, .option])
+                .disabled(queryTab == nil)
+            Button("Format SQL") { if queryTab?.formatSQL() != true { NSSound.beep() } }
+                .keyboardShortcut("i")
+                .disabled(queryTab == nil)
             Button("Cancel Query") { queryTab?.cancel() }
                 .keyboardShortcut(".")
                 .disabled(!(queryTab?.isRunning ?? false))

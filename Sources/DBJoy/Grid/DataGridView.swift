@@ -12,6 +12,8 @@ struct GridActions {
     /// Opens the row referenced by a foreign-key column value.
     var followForeignKey: ((String, String) -> Void)?
     var copyAsInsert: ((IndexSet) -> String)?
+    /// Markdown of the rows with their context (query or table structure) for an AI chat.
+    var copyForAI: ((IndexSet) -> String)?
 }
 
 /// Spreadsheet-like grid backed by a view-based NSTableView.
@@ -395,6 +397,9 @@ struct DataGridView: NSViewRepresentable {
             if parent.actions.copyAsInsert != nil {
                 add("Copy as INSERT", #selector(copyAsInsert))
             }
+            if parent.actions.copyForAI != nil {
+                add("Copy for AI", #selector(copyForAI))
+            }
 
             if let column, parent.actions.filter != nil || parent.actions.followForeignKey != nil {
                 menu.addItem(.separator())
@@ -444,6 +449,10 @@ struct DataGridView: NSViewRepresentable {
 
         @objc private func copyAsInsert() {
             if let sql = parent.actions.copyAsInsert?(menuTarget.rows) { setPasteboard(sql) }
+        }
+
+        @objc private func copyForAI() {
+            if let text = parent.actions.copyForAI?(menuTarget.rows) { setPasteboard(text) }
         }
 
         @objc private func filterByValue() {

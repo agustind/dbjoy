@@ -161,6 +161,26 @@ struct AssistantIntegrationTests {
         #expect(library.load(id)?.items.count == 5)
     }
 
+    @Test func attachmentGoesToTheModelAndShowsItsTitle() async throws {
+        UserDefaults.standard.set(false, forKey: AssistantSettings.allowWritesKey)
+        let (workspace, assistant) = try await connectedAssistant()
+        defer { Task { await workspace.disconnect() } }
+        ScriptedLLM.responses = [ScriptedLLM.reply("The column is misspelled.")]
+
+        workspace.askAssistant("Why did this fail?", attaching: .init(kind: "error", title: "Error: column \"nme\" does not exist",
+                                                                     text: "```sql\nSELECT nme FROM customers\n```"))
+        await assistant.waitUntilIdle()
+        #expect(assistant.attachment == nil)
+        if case .user(let text) = assistant.items.first?.kind {
+            #expect(text == "Why did this fail?\n\nAttached: Error: column \"nme\" does not exist")
+        } else {
+            Issue.record("no user message")
+        }
+        let sent = ScriptedLLM.requests.first?["messages"]?.arrayValue?.first?["content"]
+        let sentText = sent?.stringValue ?? sent?[0]?["text"]?.stringValue ?? ""
+        #expect(sentText.contains("SELECT nme FROM customers"))
+    }
+
     @Test func writesAreAtomicAndOpenInEditorAddsATab() async throws {
         try await SampleDatabaseLock.run {
             UserDefaults.standard.set(true, forKey: AssistantSettings.allowWritesKey)
