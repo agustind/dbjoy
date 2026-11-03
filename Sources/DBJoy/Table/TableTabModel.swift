@@ -36,6 +36,8 @@ final class TableTabModel: Identifiable {
     var page = 0
     var hasMoreRows = false
     var rowCount: RowCount?
+    /// The count above is of rows matching the search conditions, not the whole table.
+    var rowCountIsFiltered = false
     var sort: [SortKey] = []
 
     /// The user's sort, or the primary key when none is chosen. Without an ORDER BY, Postgres
@@ -133,6 +135,7 @@ final class TableTabModel: Identifiable {
         resetEdits()
         Task {
             rowCount = try? await connection.rowCount(of: ref, request: request)
+            rowCountIsFiltered = request.filters.contains { $0.isEnabled && (!$0.op.takesValue || !$0.value.isEmpty) }
         }
     }
 

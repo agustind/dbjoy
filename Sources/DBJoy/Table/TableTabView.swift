@@ -208,6 +208,14 @@ private struct DataPane: View {
                 }
                 Spacer()
                 if model.isLoading { ProgressView().controlSize(.small) }
+                if let count = model.rowCount {
+                    let number = (count.isEstimate ? "~" : "") + count.value.formatted()
+                    Text(model.rowCountIsFiltered ? "\(number) matching \(count.value == 1 ? "row" : "rows")"
+                                  : "\(number) \(count.value == 1 ? "row" : "rows")")
+                        .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                        .monospacedDigit()
+                    if model.queryDuration != nil { Text("·").font(.system(size: 12)).foregroundStyle(Theme.textTertiary) }
+                }
                 if let duration = model.queryDuration {
                     Text(formatDuration(duration))
                         .font(.system(size: 12)).foregroundStyle(Theme.textTertiary)
