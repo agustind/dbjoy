@@ -112,6 +112,8 @@ final class LocalHTTPServer: @unchecked Sendable {
     private let listener: NWListener
     private let handler: Handler
     private let queue = DispatchQueue(label: "app.dbjoy.http")
+    /// Open client connections, touched only on `queue`, so `stop()` also ends keep-alive connections.
+    private var connections: [ObjectIdentifier: NWConnection] = [:]
 
     init(port: UInt16, handler: @escaping Handler) throws {
         guard let port = NWEndpoint.Port(rawValue: port), port != .any else { throw DatabaseError("Invalid port \(port)") }
@@ -141,6 +143,10 @@ final class LocalHTTPServer: @unchecked Sendable {
 
     func stop() {
         listener.cancel()
+        queue.async { [self] in
+            connections.values.forEach { $0.cancel() }
+            connections = [:]
+        }
     }
 
     private static func describe(_ error: NWError) -> String {
@@ -151,10 +157,14 @@ final class LocalHTTPServer: @unchecked Sendable {
     }
 
     private func serve(_ connection: NWConnection) {
+        connections[ObjectIdentifier(connection)] = connection
         connection.start(queue: queue)
         let handler = handler
         Task {
-            defer { connection.cancel() }
+            defer {
+                connection.cancel()
+                queue.async { [self] in connections[ObjectIdentifier(connection)] = nil }
+            }
             var parser = HTTPRequestParser()
             while true {
                 do {

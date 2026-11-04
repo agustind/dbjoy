@@ -17,6 +17,9 @@ cp "$BIN" "$APP/Contents/MacOS/DBJoy"
 cp Assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Helpers: the SSH askpass, pg_dump for backups, and psql for copying databases (so they don't need Homebrew).
 cp "$(dirname "$BIN")/dbjoy-askpass" "$APP/Contents/Helpers/dbjoy-askpass"
+# The stdio MCP bridge that Claude Code starts. Not in sandboxed builds: a helper that inherits the
+# app's sandbox can't run on its own.
+[ -z "${DBJOY_SANDBOX:-}" ] && cp "$(dirname "$BIN")/dbjoy-mcp" "$APP/Contents/Helpers/dbjoy-mcp"
 LIBPQ_PREFIX="${LIBPQ_PREFIX:-/opt/homebrew/opt/libpq}"
 for tool in pg_dump psql; do
   cp "$(realpath "$LIBPQ_PREFIX/bin/$tool")" "$APP/Contents/Helpers/$tool"

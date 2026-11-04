@@ -44,6 +44,7 @@ struct MCPSettingsView: View {
                     Text("Add to Claude Code")
                 } footer: {
                     footnote("Run the command once in Terminal; --scope user makes DBJoy available in every project. "
+                             + "If you added DBJoy before, run claude mcp remove --scope user dbjoy first. "
                              + "Other clients: connect to \(MCPSettings.endpoint(port: MCPSettings.port)) with the header "
                              + "Authorization: Bearer <token>.")
                 }

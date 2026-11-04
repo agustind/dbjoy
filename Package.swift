@@ -10,6 +10,7 @@ let package = Package(
     products: [
         .executable(name: "DBJoy", targets: ["DBJoy"]),
         .executable(name: "dbjoy-askpass", targets: ["AskPass"]),
+        .executable(name: "dbjoy-mcp", targets: ["MCPBridge"]),
     ],
     targets: [
         .systemLibrary(name: "CLibPQ", path: "Sources/CLibPQ"),
@@ -24,6 +25,7 @@ let package = Package(
             dependencies: ["DBCore", "PostgresDriver"]
         ),
         .executableTarget(name: "AskPass"),
+        .executableTarget(name: "MCPBridge"),
         .testTarget(name: "DBCoreTests", dependencies: ["DBCore"]),
         .testTarget(name: "PostgresDriverTests", dependencies: ["PostgresDriver", "DBCore"]),
         .testTarget(name: "DBJoyTests", dependencies: ["DBJoy", "DBCore", "PostgresDriver"]),

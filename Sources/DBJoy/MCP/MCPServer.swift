@@ -19,9 +19,15 @@ enum MCPSettings {
 
     static func endpoint(port: Int) -> String { "http://127.0.0.1:\(port)/mcp" }
 
-    /// The `claude mcp add` command that registers DBJoy in Claude Code for every project.
+    /// The `claude mcp add` command that registers DBJoy in Claude Code for every project. It uses the bundled
+    /// stdio bridge when there is one: Claude Code then stays connected while DBJoy quits, restarts or updates,
+    /// and follows port changes.
     static func claudeCommand(port: Int, token: String) -> String {
-        "claude mcp add --transport http --scope user dbjoy \(endpoint(port: port)) --header \"Authorization: Bearer \(token)\""
+        if let bridge = BundledTools.url("dbjoy-mcp") {
+            let path = "'" + bridge.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+            return "claude mcp add --scope user dbjoy -e DBJOY_MCP_TOKEN=\(token) -- \(path)"
+        }
+        return "claude mcp add --transport http --scope user dbjoy \(endpoint(port: port)) --header \"Authorization: Bearer \(token)\""
     }
 
     // MARK: Token
@@ -87,7 +93,7 @@ final class MCPServer {
     @ObservationIgnored private var http: LocalHTTPServer?
     @ObservationIgnored let databases = MCPDatabases()
     /// Client names by Mcp-Session-Id, for the activity list.
-    @ObservationIgnored private var clients: [String: String] = [:]
+    @ObservationIgnored private(set) var clients: [String: String] = [:]
 
     init(connections: @escaping @MainActor () -> [ConnectionConfig] = { ConnectionStore.shared.connections },
          password: @escaping @MainActor (ConnectionConfig) -> String? = { ConnectionStore.shared.password(for: $0) },

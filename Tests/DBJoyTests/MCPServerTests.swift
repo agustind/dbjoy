@@ -215,3 +215,58 @@ struct MCPServerIntegrationTests {
         #expect(setting.text.contains(MCPServer.statementTimeout))
     }
 }
+
+/// The stdio bridge (`dbjoy-mcp`) against a real server that stops and starts again.
+@MainActor
+struct MCPBridgeTests {
+    @Test func staysConnectedWhileDBJoyRestarts() async throws {
+        let bridgeURL = try #require(BundledTools.url("dbjoy-mcp"))
+        let config = ConnectionConfig(name: "Sample", host: "localhost", user: "postgres", database: "shop", allowsMCP: true)
+        let server = MCPServer(connections: { [config] }, password: { _ in nil }, token: "bridge-token")
+        let port = Int.random(in: 49152...60000)
+        func start() async throws {
+            // Binding the same port right after stop() can fail while the old listener closes; try again.
+            for _ in 0..<10 where server.status != .running(port: port) {
+                server.start(port: port)
+                for _ in 0..<25 where server.status == .starting { try await Task.sleep(for: .milliseconds(20)) }
+                if case .failed = server.status { try await Task.sleep(for: .milliseconds(200)) }
+            }
+            try #require(server.status == .running(port: port))
+        }
+        try await start()
+        defer { server.stop() }
+
+        let process = Process()
+        process.executableURL = bridgeURL
+        process.environment = ["DBJOY_MCP_TOKEN": "bridge-token", "DBJOY_MCP_PORT": "\(port)",
+                               "DBJOY_MCP_CACHE": FileManager.default.temporaryDirectory.appending(path: UUID().uuidString).path]
+        let input = Pipe(), output = Pipe()
+        process.standardInput = input
+        process.standardOutput = output
+        try process.run()
+        defer { process.terminate() }
+        var lines = output.fileHandleForReading.bytes.lines.makeAsyncIterator()
+        func send(_ message: JSONValue) async throws -> JSONValue {
+            input.fileHandleForWriting.write(try message.encoded() + Data("\n".utf8))
+            return try JSONValue.parse(Data(try #require(try await lines.next()).utf8))
+        }
+        let listConnections: JSONValue = ["jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                                          "params": ["name": .string(MCPServer.listConnections), "arguments": [:]]]
+
+        let initialize = try await send(["jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                         "params": ["protocolVersion": "2025-06-18", "clientInfo": ["name": "bridge-test"]]])
+        #expect(initialize["result"]?["serverInfo"]?["name"]?.stringValue == "dbjoy")
+        #expect(try await send(listConnections)["result"]?["content"]?[0]?["text"]?.stringValue?.contains("Sample") == true)
+
+        server.stop()
+        let closed = try await send(listConnections)
+        #expect(closed["result"]?["isError"] == true)
+        #expect(closed["result"]?["content"]?[0]?["text"]?.stringValue?.contains("isn't running") == true)
+
+        try await start()
+        let back = try await send(listConnections)
+        #expect(back["result"]?["content"]?[0]?["text"]?.stringValue?.contains("Sample") == true)
+        // The bridge introduced the client again, so activity still shows its name.
+        #expect(server.clients.values.contains("bridge-test"))
+    }
+}

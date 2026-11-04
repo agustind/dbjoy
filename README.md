@@ -155,9 +155,12 @@ password in your Keychain and any SSH tunnel you set up, and the shared connecti
    connection's Safety section). Every connection starts unshared, and clients never see the others.
 3. Click **Copy Command** and run it once in Terminal. It registers DBJoy for all your projects:
    ```sh
-   claude mcp add --transport http --scope user dbjoy http://127.0.0.1:47821/mcp \
-     --header "Authorization: Bearer <token>"
+   claude mcp add --scope user dbjoy -e DBJOY_MCP_TOKEN=<token> -- \
+     /Applications/DBJoy.app/Contents/Helpers/dbjoy-mcp
    ```
+   `dbjoy-mcp` is a small bridge inside the app that Claude Code starts for each session. Claude Code stays
+   connected when DBJoy quits, restarts or updates: while DBJoy is closed, queries answer that it isn't running,
+   and they work again once you open it. If you added DBJoy before, run `claude mcp remove --scope user dbjoy` first.
 4. In each project's `CLAUDE.md`, say which connection it uses:
    ```markdown
    The database is the DBJoy connection "Andromeda (dev)".
@@ -185,7 +188,8 @@ Run `/mcp` in Claude Code to check that DBJoy is connected.
 ### Good to know
 - DBJoy has to be open. It doesn't need a window open for that connection.
 - A connection must save its password in DBJoy, because DBJoy can't ask for one on a client's behalf.
-- If port 47821 is taken, change it in Settings → MCP and copy the command again.
+- If port 47821 is taken, change it in Settings → MCP. The bridge follows the new port; clients connected over HTTP
+  need the new address.
 - Other MCP clients (such as Cursor) work the same way. Point them at `http://127.0.0.1:47821/mcp` (Streamable HTTP)
   with the header `Authorization: Bearer <token>`; **Copy Token** copies the token.
 
