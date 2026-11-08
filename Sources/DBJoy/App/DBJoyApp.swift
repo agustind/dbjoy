@@ -11,6 +11,7 @@ struct DBJoyApp: App {
         Window("Connections", id: "welcome") {
             WelcomeView()
                 .environment(store)
+                .interfaceFont()
         }
         .defaultSize(width: 760, height: 500)
 
@@ -20,6 +21,7 @@ struct DBJoyApp: App {
                 // the id resets the workspace so the old session disconnects.
                 WorkspaceRoot(config: config) { connectionID = $0 }
                     .id(id)
+                    .interfaceFont()
             } else {
                 ContentUnavailableView("Connection not found", systemImage: "questionmark.circle",
                                        description: Text("It may have been deleted."))
@@ -30,6 +32,7 @@ struct DBJoyApp: App {
 
         WindowGroup("Compare Schemas", id: "compare", for: CompareRequest.self) { $request in
             SchemaCompareView(request: request ?? CompareRequest())
+                .interfaceFont()
         }
         .defaultSize(width: 1180, height: 760)
         // Don't reconnect to two databases on launch.
@@ -37,16 +40,19 @@ struct DBJoyApp: App {
 
         WindowGroup("Copy Database", id: "copy-database", for: CompareRequest.self) { $request in
             CopyDatabaseView(request: request ?? CompareRequest())
+                .interfaceFont()
         }
         .defaultSize(width: 900, height: 480)
         .restorationBehavior(.disabled)
 
         Settings {
             SettingsView()
+                .interfaceFont()
         }
 
         Window("About DBJoy", id: "about") {
             AboutView()
+                .interfaceFont()
         }
         .windowResizability(.contentSize)
         .restorationBehavior(.disabled)

@@ -44,8 +44,8 @@ struct ConnectionFormView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "doc.on.clipboard").foregroundStyle(Theme.accentText)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Connection string on the clipboard").font(.system(size: 12, weight: .semibold))
-                                Text(candidate.summary).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                                Text("Connection string on the clipboard").font(.ui(size: 12, weight: .semibold))
+                                Text(candidate.summary).font(.ui(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                             }
                             Spacer()
                             Button("Use It") {
@@ -71,9 +71,9 @@ struct ConnectionFormView: View {
                     }
                     switch importStatus {
                     case .filled(let message):
-                        Label(message, systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green)
+                        Label(message, systemImage: "checkmark.circle.fill").font(.ui(.caption)).foregroundStyle(.green)
                     case .failed(let message):
-                        Label(message, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                        Label(message, systemImage: "exclamationmark.triangle.fill").font(.ui(.caption)).foregroundStyle(.orange)
                     case nil:
                         EmptyView()
                     }
@@ -81,7 +81,7 @@ struct ConnectionFormView: View {
                     Text("Quick setup")
                 } footer: {
                     Text("Paste a postgres:// URL or key=value string to fill in the fields below. The string itself isn't saved; the password goes to the Keychain.")
-                        .font(.caption)
+                        .font(.ui(.caption))
                         .foregroundStyle(.secondary)
                 }
                 Section {
@@ -134,7 +134,7 @@ struct ConnectionFormView: View {
                 } footer: {
                     if config.ssh.isEnabled {
                         Text("The database host and port above are reached from the SSH server.")
-                            .font(.caption)
+                            .font(.ui(.caption))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -143,7 +143,7 @@ struct ConnectionFormView: View {
                     Toggle("Share with MCP clients such as Claude Code (read-only)", isOn: $config.allowsMCP)
                     if config.environment.requiresWriteConfirmation {
                         Label("Writes on production connections always ask for confirmation.", systemImage: "exclamationmark.shield")
-                            .font(.caption)
+                            .font(.ui(.caption))
                             .foregroundStyle(.secondary)
                     }
                 }

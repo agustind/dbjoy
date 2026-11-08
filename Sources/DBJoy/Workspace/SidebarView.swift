@@ -74,12 +74,12 @@ struct SidebarView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Text(model.currentDatabase)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.ui(size: 14, weight: .semibold))
                             .foregroundStyle(Theme.textPrimary)
                             .lineLimit(1)
                             .truncationMode(.tail)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.ui(size: 10, weight: .bold))
                             .foregroundStyle(Theme.textSecondary)
                     }
                     .contentShape(Rectangle())
@@ -108,10 +108,10 @@ struct SidebarView: View {
                             .layoutPriority(1)
                         Spacer(minLength: 4).frame(maxWidth: 4)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.ui(size: 8, weight: .bold))
                             .foregroundStyle(Theme.textTertiary)
                     }
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.ui(size: 11, weight: .medium))
                     .foregroundStyle(Theme.textSecondary)
                     .contentShape(Rectangle())
                 }
@@ -123,7 +123,7 @@ struct SidebarView: View {
             }
             Spacer(minLength: 0)
             if model.config.readOnly {
-                Image(systemName: "lock.fill").font(.system(size: 11)).foregroundStyle(Theme.textTertiary)
+                Image(systemName: "lock.fill").font(.ui(size: 11)).foregroundStyle(Theme.textTertiary)
                     .help("Read-only connection")
             }
         }
@@ -149,7 +149,7 @@ struct SidebarView: View {
                             HStack(spacing: 6) {
                                 SectionLabel(title: sectionTitle(kind), trailing: "\(objects.count)")
                                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                                    .font(.system(size: 8, weight: .bold))
+                                    .font(.ui(size: 8, weight: .bold))
                                     .foregroundStyle(Theme.textTertiary)
                                     .frame(width: 10)
                             }
@@ -184,7 +184,7 @@ struct SidebarView: View {
         .overlay {
             if !model.isLoadingObjects, filteredObjects.isEmpty {
                 Text(search.isEmpty ? "No objects in \(model.currentSchema)" : "No matches")
-                    .font(.system(size: 13))
+                    .font(.ui(size: 13))
                     .foregroundStyle(Theme.textSecondary)
             }
         }
@@ -268,15 +268,15 @@ struct SidebarRow: View {
         Button(action: action) {
             HStack(spacing: 9) {
                 Image(systemName: icon)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.ui(size: 13, weight: .medium))
                     .foregroundStyle(isSelected ? Theme.accentText : Theme.textSecondary)
                     .frame(width: 18)
                 Text(title)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                    .font(.ui(size: 13, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? Theme.accentText : Theme.textPrimary)
                     .lineLimit(1)
                 if let detail {
-                    Text(detail).font(.system(size: 12)).foregroundStyle(Theme.textTertiary).lineLimit(1)
+                    Text(detail).font(.ui(size: 12)).foregroundStyle(Theme.textTertiary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 trailing
@@ -328,7 +328,7 @@ private struct SidebarEntry<Footer: View>: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 4) {
                 if let title {
-                    Text(title).font(.system(size: 13, weight: .semibold))
+                    Text(title).font(.ui(size: 13, weight: .semibold))
                         .foregroundStyle(isSelected ? Theme.accentText : Theme.textPrimary)
                 }
                 Text(sql.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -368,7 +368,7 @@ private struct SavedQueriesList: View {
                     SidebarEntry(title: query.name, sql: query.sql, isSelected: isOpen) {
                         if query.connectionID == nil {
                             Label("All connections", systemImage: "globe")
-                                .font(.system(size: 10.5)).foregroundStyle(Theme.textTertiary)
+                                .font(.ui(size: 10.5)).foregroundStyle(Theme.textTertiary)
                         }
                     } action: {
                         open(query)
@@ -386,7 +386,7 @@ private struct SavedQueriesList: View {
         .overlay {
             if queries.isEmpty {
                 Text("Save a query from a query tab with ⌘S")
-                    .font(.system(size: 13)).foregroundStyle(Theme.textSecondary)
+                    .font(.ui(size: 13)).foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center).padding()
             }
         }
@@ -430,7 +430,7 @@ private struct HistoryList: View {
                             Text("· \(formatDuration(entry.duration))")
                             if let rows = entry.rowCount { Text("· \(rows) rows") }
                         }
-                        .font(.system(size: 10.5))
+                        .font(.ui(size: 10.5))
                         .foregroundStyle(Theme.textTertiary)
                     } action: {
                         model.newQuery(sql: entry.sql)
@@ -447,7 +447,7 @@ private struct HistoryList: View {
                 if !entries.isEmpty {
                     Button("Clear history") { QueryLibrary.shared.clearHistory(for: model.config.id) }
                         .buttonStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.ui(size: 12, weight: .medium))
                         .foregroundStyle(Theme.accentText)
                         .padding(10)
                 }
@@ -458,7 +458,7 @@ private struct HistoryList: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
             if entries.isEmpty {
-                Text("No queries yet").font(.system(size: 13)).foregroundStyle(Theme.textSecondary)
+                Text("No queries yet").font(.ui(size: 13)).foregroundStyle(Theme.textSecondary)
             }
         }
     }

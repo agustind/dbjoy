@@ -63,7 +63,7 @@ struct EnvironmentBadge: View {
 
     var body: some View {
         Text(environment.displayName.uppercased())
-            .font(.system(size: 10, weight: .semibold))
+            .font(.ui(size: 10, weight: .semibold))
             .tracking(0.5)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)

@@ -62,9 +62,9 @@ struct MCPSettingsView: View {
                                     Text(config.displayName)
                                     if !config.savePassword {
                                         Text("Save its password to use it from MCP clients")
-                                            .font(.caption).foregroundStyle(.orange)
+                                            .font(.ui(.caption)).foregroundStyle(.orange)
                                     } else if config.environment == .production {
-                                        Text("Production").font(.caption).foregroundStyle(.secondary)
+                                        Text("Production").font(.ui(.caption)).foregroundStyle(.secondary)
                                     }
                                 }
                             }
@@ -89,7 +89,7 @@ struct MCPSettingsView: View {
                         Text("Recent activity")
                         Spacer()
                         if !server.activity.isEmpty {
-                            Button("Clear") { server.clearActivity() }.buttonStyle(.link).font(.caption)
+                            Button("Clear") { server.clearActivity() }.buttonStyle(.link).font(.ui(.caption))
                         }
                     }
                 }
@@ -115,16 +115,16 @@ struct MCPSettingsView: View {
         case .running(let port):
             Label("Listening on \(MCPSettings.endpoint(port: port))", systemImage: "circle.fill")
                 .foregroundStyle(.green)
-                .font(.callout)
+                .font(.ui(.callout))
                 .textSelection(.enabled)
         case .starting:
-            Label("Starting…", systemImage: "circle.dotted").foregroundStyle(.secondary).font(.callout)
+            Label("Starting…", systemImage: "circle.dotted").foregroundStyle(.secondary).font(.ui(.callout))
         case .failed(let message):
             Label("Couldn't start: \(message)", systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
-                .font(.callout)
+                .font(.ui(.callout))
         case .off:
-            Label("Stopped", systemImage: "circle").foregroundStyle(.secondary).font(.callout)
+            Label("Stopped", systemImage: "circle").foregroundStyle(.secondary).font(.ui(.callout))
         }
     }
 
@@ -140,7 +140,7 @@ struct MCPSettingsView: View {
 
     private func footnote(_ text: String) -> some View {
         Text(text)
-            .font(.caption)
+            .font(.ui(.caption))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -158,7 +158,7 @@ private struct ActivityRow: View {
                 Spacer()
                 Text(entry.date, style: .time).foregroundStyle(.secondary)
             }
-            .font(.callout)
+            .font(.ui(.callout))
             if let sql = entry.sql {
                 Text(sql)
                     .font(.system(size: 11, design: .monospaced))
@@ -167,7 +167,7 @@ private struct ActivityRow: View {
                     .textSelection(.enabled)
             }
             if let error = entry.error {
-                Text(error).font(.caption).foregroundStyle(.red).lineLimit(2)
+                Text(error).font(.ui(.caption)).foregroundStyle(.red).lineLimit(2)
             }
         }
     }

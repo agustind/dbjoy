@@ -13,7 +13,7 @@ struct QueryTabView: View {
                            ?? "SQL · \(workspace.currentDatabase)",
                        showsToolbar: false) {
                 if model.savedQueryID != nil {
-                    Image(systemName: "bookmark.fill").font(.system(size: 12)).foregroundStyle(Theme.accentText)
+                    Image(systemName: "bookmark.fill").font(.ui(size: 12)).foregroundStyle(Theme.accentText)
                         .help("Saved query")
                 }
                 transactionBadge
@@ -93,7 +93,7 @@ struct QueryTabView: View {
             let failed = model.transactionStatus == .failedTransaction
             Label(failed ? "Transaction failed" : "In transaction",
                   systemImage: failed ? "exclamationmark.triangle.fill" : "circle.fill")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.ui(size: 11, weight: .semibold))
                 .foregroundStyle(failed ? Color.red : Color.orange)
                 .padding(.horizontal, 8)
                 .frame(height: 22)
@@ -227,10 +227,10 @@ private struct ResultsPane: View {
             case .messages:
                 if model.messages.isEmpty {
                     VStack(spacing: 8) {
-                        Image(systemName: "play.circle").font(.system(size: 28, weight: .light)).foregroundStyle(Theme.accent)
-                        Text("Run a query").font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                        Image(systemName: "play.circle").font(.ui(size: 28, weight: .light)).foregroundStyle(Theme.accent)
+                        Text("Run a query").font(.ui(size: 14, weight: .semibold)).foregroundStyle(Theme.textPrimary)
                         Text("⌘↩ runs the statement under the cursor, ⇧⌘↩ runs everything.")
-                            .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                            .font(.ui(size: 12)).foregroundStyle(Theme.textSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -303,7 +303,7 @@ private struct ResultsPane: View {
                 }
             }
         }
-        .font(.system(size: 12))
+        .font(.ui(size: 12))
     }
 
     @ViewBuilder private var actions: some View {
@@ -346,7 +346,7 @@ private struct ResultsPane: View {
                     .help("Ask the assistant where the time goes and how to speed up the query")
             }
         }
-        .font(.system(size: 12))
+        .font(.ui(size: 12))
     }
 
     // MARK: Sorting
@@ -502,15 +502,15 @@ private struct ResultRowDetails: View {
     var body: some View {
         if rows.isEmpty {
             VStack(spacing: 8) {
-                Image(systemName: "sidebar.right").font(.system(size: 24, weight: .light)).foregroundStyle(Theme.textTertiary)
-                Text("Select rows to see their details").font(.system(size: 13)).foregroundStyle(Theme.textSecondary)
+                Image(systemName: "sidebar.right").font(.ui(size: 24, weight: .light)).foregroundStyle(Theme.textTertiary)
+                Text("Select rows to see their details").font(.ui(size: 13)).foregroundStyle(Theme.textSecondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if rows.count > 1 {
-                        Text("\(rows.count) rows selected").font(.system(size: 12, weight: .semibold))
+                        Text("\(rows.count) rows selected").font(.ui(size: 12, weight: .semibold))
                             .foregroundStyle(Theme.accentText)
                     }
                     ForEach(Array(result.columns.enumerated()), id: \.offset) { index, column in
@@ -531,12 +531,12 @@ private struct ResultRowDetails: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(column.name.uppercased())
-                    .font(.system(size: 11, weight: .semibold)).tracking(0.5)
+                    .font(.ui(size: 11, weight: .semibold)).tracking(0.5)
                     .foregroundStyle(Theme.textSecondary)
-                Text(column.typeName).font(.system(size: 11)).foregroundStyle(Theme.textTertiary)
+                Text(column.typeName).font(.ui(size: 11)).foregroundStyle(Theme.textTertiary)
             }
             Text(mixed ? "Mixed" : value.map { column.category == .json ? Self.prettyJSON($0) : $0 } ?? "NULL")
-                .font(column.category == .json && !mixed && value != nil ? .system(size: 12, design: .monospaced) : .system(size: 13))
+                .font(column.category == .json && !mixed && value != nil ? .data(size: 12, monospaced: true) : .data(size: 13))
                 .textSelection(.enabled)
                 .foregroundStyle(mixed || value == nil ? Theme.textTertiary : Theme.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -567,7 +567,7 @@ private struct PlanView: View {
                 if let planning = plan.planningTime {
                     Text(String(format: "Planning: %.2f ms", planning)
                          + (plan.executionTime.map { String(format: " · Execution: %.2f ms", $0) } ?? ""))
-                        .font(.system(size: 11)).foregroundStyle(Theme.textTertiary)
+                        .font(.ui(size: 11)).foregroundStyle(Theme.textTertiary)
                         .padding(.horizontal, 16).padding(.vertical, 10)
                 }
             }
@@ -580,7 +580,7 @@ private struct PlanView: View {
         return HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(node.title)
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(.ui(size: 12.5, weight: .semibold))
                     .foregroundStyle(hot ? Color.orange : Theme.textPrimary)
                 ForEach(node.details, id: \.self) { detail in
                     Text(detail).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(Theme.textSecondary)
@@ -589,7 +589,7 @@ private struct PlanView: View {
                 if let miss = node.estimateMiss, let actual = node.actualRows, let loops = node.loops {
                     Label("Estimated \(Int(node.estimatedRows * Double(loops)).formatted()) rows, got \(Int(actual).formatted()) (\(Int(miss))× off)",
                           systemImage: "exclamationmark.triangle")
-                        .font(.system(size: 11)).foregroundStyle(Color.orange)
+                        .font(.ui(size: 11)).foregroundStyle(Color.orange)
                 }
             }
             .padding(.leading, CGFloat(node.depth) * 18)
@@ -606,7 +606,7 @@ private struct PlanView: View {
                 }
                 Text(metrics(node)).foregroundStyle(Theme.textTertiary).monospacedDigit()
             }
-            .font(.system(size: 11.5))
+            .font(.ui(size: 11.5))
             .foregroundStyle(Theme.textSecondary)
         }
         .padding(.horizontal, 16)
@@ -632,7 +632,7 @@ private struct SaveQuerySheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(model.savedQueryID == nil ? "Save Query" : "Update Saved Query").font(.headline)
+            Text(model.savedQueryID == nil ? "Save Query" : "Update Saved Query").font(.ui(.headline))
             TextField("Name", text: $name)
             Toggle("Available in all connections", isOn: $shared)
             HStack {

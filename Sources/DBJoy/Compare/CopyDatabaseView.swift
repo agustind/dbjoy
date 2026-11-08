@@ -92,7 +92,7 @@ struct CopyDatabaseView: View {
                     .foregroundStyle(.orange)
             }
         }
-        .font(.callout)
+        .font(.ui(.callout))
     }
 
     @ViewBuilder private var status: some View {
@@ -110,7 +110,7 @@ struct CopyDatabaseView: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
             }
-            .font(.callout)
+            .font(.ui(.callout))
             .accessibilityIdentifier("copy-progress")
         case .done(let message):
             VStack(alignment: .leading, spacing: 6) {
@@ -121,7 +121,7 @@ struct CopyDatabaseView: View {
                         .foregroundStyle(.orange)
                 }
             }
-            .font(.callout)
+            .font(.ui(.callout))
             .textSelection(.enabled)
         case .failed(let message):
             ScrollView {
@@ -130,7 +130,7 @@ struct CopyDatabaseView: View {
                 } icon: {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
                 }
-                .font(.callout)
+                .font(.ui(.callout))
             }
             .frame(maxHeight: 160)
             .accessibilityIdentifier("copy-result")
@@ -176,7 +176,7 @@ private struct ConfirmCopySheet: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Replace \(model.target.database) on \(targetName)?")
-                    .font(.headline)
+                    .font(.ui(.headline))
                 Spacer()
                 if let environment = model.target.config?.environment { EnvironmentBadge(environment: environment) }
             }
@@ -214,7 +214,7 @@ private struct ConfirmCopySheet: View {
                 ForEach(PlanSummary.sections(model.plan, options: model.options), id: \.title) { section in
                     VStack(alignment: .leading, spacing: 3) {
                         Text(section.title)
-                            .font(.callout.weight(.semibold))
+                            .font(.ui(.callout, weight: .semibold))
                         ForEach(section.lines, id: \.self) { line in
                             Text("• " + line)
                         }
@@ -225,7 +225,7 @@ private struct ConfirmCopySheet: View {
         }
         .frame(maxHeight: 280)
         .fixedSize(horizontal: false, vertical: true)
-        .font(.callout)
+        .font(.ui(.callout))
         .foregroundStyle(Theme.textSecondary)
         .accessibilityIdentifier("copy-skipped")
     }
@@ -334,7 +334,7 @@ private struct CopyTablesList: View {
                 SectionLabel(title: "Tables")
                     .fixedSize()
                 Text(summary)
-                    .font(.caption)
+                    .font(.ui(.caption))
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
                 Spacer()
@@ -350,7 +350,7 @@ private struct CopyTablesList: View {
                     .help(filter.isEmpty ? "Copy every table without data" : "Copy the tables shown without data")
             }
             Text("Every table's structure is copied. The Data checkbox decides whether its rows come too: unchecked tables are created empty.")
-                .font(.caption)
+                .font(.ui(.caption))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             content
@@ -362,13 +362,13 @@ private struct CopyTablesList: View {
     @ViewBuilder private var content: some View {
         if let error = model.planError, !model.hasPlan {
             Label(error, systemImage: "exclamationmark.triangle")
-                .font(.callout)
+                .font(.ui(.callout))
                 .foregroundStyle(Theme.textSecondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if !model.hasPlan {
             Text(model.source.session != nil && model.target.session != nil && !model.sameDatabase
                  ? "Reading the tables…" : "Pick a source and a target to choose which tables' rows to copy.")
-                .font(.callout)
+                .font(.ui(.callout))
                 .foregroundStyle(Theme.textSecondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -388,7 +388,7 @@ private struct CopyTablesList: View {
                     HStack(spacing: 6) {
                         Text(item.table.description)
                         if platform.contains(item.table) {
-                            Text("platform").font(.caption).foregroundStyle(Theme.textTertiary)
+                            Text("platform").font(.ui(.caption)).foregroundStyle(Theme.textTertiary)
                         }
                     }
                 }

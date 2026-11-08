@@ -8,7 +8,7 @@ struct ExportSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Export from \(model.workspace?.currentDatabase ?? "") · \(model.schema)").font(.headline)
+                Text("Export from \(model.workspace?.currentDatabase ?? "") · \(model.schema)").font(.ui(.headline))
                 Spacer()
             }
 
@@ -20,11 +20,11 @@ struct ExportSheet: View {
             .pickerStyle(.segmented)
             .disabled(model.isRunning)
 
-            Text(model.kind.explanation).font(.callout).foregroundStyle(.secondary)
+            Text(model.kind.explanation).font(.ui(.callout)).foregroundStyle(.secondary)
             if model.kind == .dump {
                 if let tool = ExportModel.pgDumpURL {
                     Text(verbatim: "Uses \(tool.path). The table selection doesn't apply to backups.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.ui(.caption)).foregroundStyle(.secondary)
                 } else {
                     Label("pg_dump not found. Install it with `brew install libpq`.", systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
@@ -32,7 +32,7 @@ struct ExportSheet: View {
             }
 
             HStack {
-                Text("\(model.selectedRefs.count) of \(model.visibleObjects.count) selected").font(.callout)
+                Text("\(model.selectedRefs.count) of \(model.visibleObjects.count) selected").font(.ui(.callout))
                 Spacer()
                 Toggle("Include views", isOn: $model.includeViews)
                     .disabled(model.kind == .dump)
@@ -88,7 +88,7 @@ struct ExportSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 ProgressView(value: Double(model.tablesDone), total: Double(max(model.selectedRefs.count, 1)))
                 Text("Exporting \(model.currentTable)… \(model.rowsExported.formatted()) rows")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.ui(.caption)).foregroundStyle(.secondary)
             }
         case .finished(let message):
             Label(message, systemImage: "checkmark.circle.fill").foregroundStyle(.green)

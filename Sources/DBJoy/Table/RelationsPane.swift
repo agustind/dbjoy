@@ -36,8 +36,8 @@ struct RelationsPane: View {
                                    target: KeyPath<ForeignKeyInfo, ObjectRef>) -> some View {
         if !keys.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(.headline)
-                Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                Text(title).font(.ui(.headline))
+                Text(subtitle).font(.ui(.caption)).foregroundStyle(.secondary)
                 ForEach(keys) { fk in
                     HStack(spacing: 8) {
                         Image(systemName: "link").foregroundStyle(.blue)
@@ -50,7 +50,7 @@ struct RelationsPane: View {
                         .font(.callout.monospaced())
                         Spacer()
                         Text("ON UPDATE \(fk.onUpdate) · ON DELETE \(fk.onDelete)")
-                            .font(.caption).foregroundStyle(fk.onDelete == "CASCADE" ? .orange : .secondary)
+                            .font(.ui(.caption)).foregroundStyle(fk.onDelete == "CASCADE" ? .orange : .secondary)
                     }
                     .help(fk.name)
                 }
@@ -62,7 +62,7 @@ struct RelationsPane: View {
     private func dependencySection(_ title: String, items: [DependencyInfo]) -> some View {
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(.headline)
+                Text(title).font(.ui(.headline))
                 ForEach(items) { item in
                     Button {
                         model.workspace?.open(item.object)
@@ -134,7 +134,7 @@ private struct RelationshipMap: View {
         VStack(alignment: side == "in" ? .trailing : .leading, spacing: 10) {
             if refs.isEmpty {
                 Text(side == "in" ? "Nothing references this table" : "No references")
-                    .font(.caption).foregroundStyle(.tertiary)
+                    .font(.ui(.caption)).foregroundStyle(.tertiary)
                     .frame(width: 180)
             }
             ForEach(refs, id: \.self) { ref in box(ref, id: "\(side):\(ref)", highlighted: false) }

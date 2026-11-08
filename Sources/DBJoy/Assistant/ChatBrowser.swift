@@ -36,13 +36,13 @@ struct ChatBrowser: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Chats").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                Text("Chats").font(.ui(size: 13, weight: .semibold)).foregroundStyle(Theme.textPrimary)
                 Spacer()
                 Button { ask(.newFolder(moving: nil), name: "") } label: {
                     Label("New folder", systemImage: "folder.badge.plus")
                 }
                 .buttonStyle(.ghost)
-                .font(.system(size: 12))
+                .font(.ui(size: 12))
                 .accessibilityIdentifier("chats-new-folder")
             }
             .padding(.horizontal, 14)
@@ -62,7 +62,7 @@ struct ChatBrowser: View {
                     }
                     if topLevel.isEmpty, library.folders.isEmpty {
                         Text("Chats are saved here automatically. Create folders to organize them.")
-                            .font(.system(size: 12))
+                            .font(.ui(size: 12))
                             .foregroundStyle(Theme.textTertiary)
                             .padding(.horizontal, 8)
                             .padding(.top, 12)
@@ -104,14 +104,14 @@ struct ChatBrowser: View {
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.ui(size: 9, weight: .semibold))
                         .foregroundStyle(Theme.textTertiary)
                         .frame(width: 10)
-                    Image(systemName: "folder").font(.system(size: 12)).foregroundStyle(Theme.accentText)
-                    Text(folder.name).font(.system(size: 12, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                    Image(systemName: "folder").font(.ui(size: 12)).foregroundStyle(Theme.accentText)
+                    Text(folder.name).font(.ui(size: 12, weight: .semibold)).foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     Spacer()
-                    Text("\(chats.count)").font(.system(size: 11)).foregroundStyle(Theme.textTertiary)
+                    Text("\(chats.count)").font(.ui(size: 11)).foregroundStyle(Theme.textTertiary)
                 }
                 .padding(.horizontal, 8)
                 .frame(height: 28)
@@ -133,7 +133,7 @@ struct ChatBrowser: View {
                 ForEach(chats) { chat in row(chat).padding(.leading, 16) }
                 if chats.isEmpty {
                     Text("Drag chats here")
-                        .font(.system(size: 11))
+                        .font(.ui(size: 11))
                         .foregroundStyle(Theme.textTertiary)
                         .padding(.leading, 34)
                         .padding(.vertical, 4)
@@ -151,15 +151,15 @@ struct ChatBrowser: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "bubble.left")
-                    .font(.system(size: 11))
+                    .font(.ui(size: 11))
                     .foregroundStyle(isCurrent ? Theme.accentText : Theme.textTertiary)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(chat.title)
-                        .font(.system(size: 12, weight: isCurrent ? .semibold : .regular))
+                        .font(.ui(size: 12, weight: isCurrent ? .semibold : .regular))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                     Text(chat.updatedAt.formatted(.relative(presentation: .named)))
-                        .font(.system(size: 10.5))
+                        .font(.ui(size: 10.5))
                         .foregroundStyle(Theme.textTertiary)
                 }
                 Spacer(minLength: 0)

@@ -110,6 +110,14 @@ struct DataGridView: NSViewRepresentable {
 
         init(parent: DataGridView) {
             self.parent = parent
+            super.init()
+            NotificationCenter.default.addObserver(self, selector: #selector(fontsChanged),
+                                                   name: FontSettings.didChangeNotification, object: nil)
+        }
+
+        @objc private func fontsChanged() {
+            tableView?.reloadData()
+            tableView?.headerView?.needsDisplay = true
         }
 
         func rebuildColumns() {
@@ -545,11 +553,10 @@ enum GridMetrics {
 }
 
 final class GridCellView: NSTableCellView {
-    private static let font = NSFont.systemFont(ofSize: 13)
-    private static let numberFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
-    static let editingFont = NSFont.systemFont(ofSize: 13)
-    private static let expressionFont = NSFontManager.shared.convert(NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
-                                                                     toHaveTrait: .italicFontMask)
+    private static var font: NSFont { .data(size: 13) }
+    private static var numberFont: NSFont { .data(size: 13, kind: .number) }
+    static var editingFont: NSFont { .data(size: 13) }
+    private static var expressionFont: NSFont { .data(size: 12, weight: .medium, kind: .monospaced, italic: true) }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -638,7 +645,7 @@ final class GridHeaderCell: NSTableHeaderCell {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
         let title = NSAttributedString(string: stringValue.uppercased(), attributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            .font: NSFont.ui(size: 11, weight: .semibold),
             .kern: 0.6,
             .foregroundColor: sortAscending == nil ? Theme.textSecondaryNS : Theme.textPrimaryNS,
             .paragraphStyle: paragraph,

@@ -18,10 +18,10 @@ struct ConnectionAvatar: View {
             }
             if let icon = ConnectionIcons.validated(config.icon) {
                 Image(systemName: icon)
-                    .font(.system(size: size * 0.44, weight: .semibold))
+                    .font(.ui(size: size * 0.44, weight: .semibold))
             } else {
                 Text(ConnectionIcons.initials(config.displayName))
-                    .font(.system(size: size * 0.38, weight: .bold))
+                    .font(.ui(size: size * 0.38, weight: .bold))
             }
         }
         .foregroundStyle(config.environment.ink)
@@ -79,7 +79,7 @@ struct ConnectionIconPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Connection icon").font(.headline)
+            Text("Connection icon").font(.ui(.headline))
             Grid(horizontalSpacing: 8, verticalSpacing: 8) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     GridRow {
@@ -89,7 +89,7 @@ struct ConnectionIconPicker: View {
             }
             .padding(2)
             Text("Initials are used when no icon is chosen.")
-                .font(.caption)
+                .font(.ui(.caption))
                 .foregroundStyle(.secondary)
         }
         .padding(16)
