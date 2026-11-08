@@ -25,7 +25,7 @@ struct DiagramView: View {
                         .buttonStyle(.ghost)
                 }
                 .padding(.horizontal, 2)
-                .frame(height: 30)
+                .frame(minHeight: 30)
                 .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).strokeBorder(Theme.border, lineWidth: 1))
                 Button { Task { await model.load() } } label: { Label("Re-layout", systemImage: "arrow.clockwise") }
                     .buttonStyle(.outline)

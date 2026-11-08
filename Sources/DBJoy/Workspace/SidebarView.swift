@@ -282,7 +282,7 @@ struct SidebarRow: View {
                 trailing
             }
             .padding(.horizontal, 9)
-            .frame(height: 30)
+            .frame(minHeight: 30)
             .background(
                 RoundedRectangle(cornerRadius: 7)
                     .fill(isSelected ? Theme.accentFill : (isHovering ? Theme.elevated : .clear)))

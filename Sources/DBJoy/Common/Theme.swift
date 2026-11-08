@@ -65,7 +65,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .lineLimit(1)
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 12)
-            .frame(height: 30)
+            .frame(minHeight: 30)
             .background(Theme.accent.opacity(configuration.isPressed ? 0.8 : 1),
                         in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
             .opacity(isEnabled ? 1 : 0.45)
@@ -85,7 +85,7 @@ struct OutlineButtonStyle: ButtonStyle {
             .lineLimit(1)
             .foregroundStyle(isActive ? Theme.accentText : Theme.textPrimary)
             .padding(.horizontal, 11)
-            .frame(height: 30)
+            .frame(minHeight: 30)
             .background(
                 RoundedRectangle(cornerRadius: Theme.cornerRadius)
                     .fill(isActive ? Theme.accentFill : (isHovering || configuration.isPressed ? Theme.elevated : .clear)))
@@ -221,7 +221,7 @@ struct SearchInput: View {
             }
         }
         .padding(.horizontal, 9)
-        .frame(height: 30)
+        .frame(minHeight: 30)
         .background(Theme.elevated.opacity(0.6), in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
         .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).strokeBorder(Theme.border, lineWidth: 1))
     }

@@ -124,7 +124,7 @@ struct StarredRail: View {
             }
             .foregroundStyle(Theme.textSecondary)
             .frame(maxWidth: .infinity, alignment: isExpanded ? .leading : .center)
-            .frame(height: 32)
+            .frame(minHeight: 32)
             .padding(.horizontal, isExpanded ? 6 : 0)
             .contentShape(Rectangle())
         }

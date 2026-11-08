@@ -96,7 +96,7 @@ struct QueryTabView: View {
                 .font(.ui(size: 11, weight: .semibold))
                 .foregroundStyle(failed ? Color.red : Color.orange)
                 .padding(.horizontal, 8)
-                .frame(height: 22)
+                .frame(minHeight: 22)
                 .background((failed ? Color.red : Color.orange).opacity(0.14), in: Capsule())
                 .help(failed ? "A statement failed. Roll back to continue." : "Changes are not visible to others until you commit.")
         default:
@@ -220,7 +220,7 @@ private struct ResultsPane: View {
                 actions
             }
             .padding(.horizontal, 16)
-            .frame(height: 44)
+            .frame(minHeight: 44)
             Rectangle().fill(Theme.separator).frame(height: 1)
 
             switch visiblePane {

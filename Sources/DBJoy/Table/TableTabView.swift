@@ -106,7 +106,7 @@ private struct Pager: View {
                 .help("Next page")
         }
         .padding(.horizontal, 2)
-        .frame(height: 30)
+        .frame(minHeight: 30)
         .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).strokeBorder(Theme.border, lineWidth: 1))
     }
 }
@@ -224,7 +224,7 @@ private struct DataPane: View {
             }
         }
         .padding(.horizontal, 20)
-        .frame(height: 44)
+        .frame(minHeight: 44)
         .background(model.hasChanges ? Theme.accentFill.opacity(0.5) : Color.clear)
         .overlay(alignment: .top) { Rectangle().fill(Theme.separator).frame(height: 1) }
     }
@@ -622,7 +622,7 @@ private struct StructureEditorView: View {
                 .buttonStyle(.borderless)
                 .controlSize(.small)
                 .padding(.horizontal, 10)
-                .frame(height: 30)
+                .frame(minHeight: 30)
             }
             .frame(minHeight: 200)
 
@@ -895,7 +895,7 @@ private struct DefinitionPane: View {
             }
             .controlSize(.small)
             .padding(.horizontal, 10)
-            .frame(height: 30)
+            .frame(minHeight: 30)
         }
     }
 }

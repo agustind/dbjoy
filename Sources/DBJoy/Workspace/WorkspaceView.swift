@@ -327,7 +327,7 @@ struct TabStrip: View {
                 .accessibilityIdentifier("assistant-toggle")
                 .padding(.trailing, 10)
         }
-        .frame(height: 42)
+        .frame(minHeight: 42)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 1) }
     }
 }
@@ -365,7 +365,7 @@ private struct TabChip: View {
         }
         .padding(.leading, 10)
         .padding(.trailing, 8)
-        .frame(height: 28)
+        .frame(minHeight: 28)
         .frame(maxWidth: 220)
         .background(
             RoundedRectangle(cornerRadius: 7)

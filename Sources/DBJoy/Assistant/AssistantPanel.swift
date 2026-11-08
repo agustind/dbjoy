@@ -73,7 +73,7 @@ struct AssistantPanel: View {
                 .help("Hide assistant (⌘J)")
         }
         .padding(.horizontal, 12)
-        .frame(height: 42)
+        .frame(minHeight: 42)
     }
 
     private var missingKey: some View {

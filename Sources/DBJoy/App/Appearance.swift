@@ -58,10 +58,17 @@ private struct GeneralSettingsView: View {
             .pickerStyle(.segmented)
 
             Section {
-                FontChooserRow(title: "Interface font", family: $fonts.uiFamily, monospacedHint: false)
-                FontChooserRow(title: "Data font", family: $fonts.dataFamily, monospacedHint: true)
+                FontChooserRow(title: "Interface font", family: $fonts.uiFamily, scale: $fonts.uiScale)
             } footer: {
-                Text("The data font is used for table cells and row details. Pick “Fixed Width” in the font panel’s collections to see only monospaced fonts.")
+                Text("Used for the sidebar, tabs, headers and other interface text.")
+                    .font(.ui(.caption))
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                FontChooserRow(title: "Data font", family: $fonts.dataFamily, scale: $fonts.dataScale)
+            } footer: {
+                Text("Used for table cells and row details. Rows get taller or shorter with the size.")
                     .font(.ui(.caption))
                     .foregroundStyle(.secondary)
             }
@@ -85,64 +92,31 @@ private struct GeneralSettingsView: View {
     }
 }
 
-/// Shows the chosen family and opens the native font panel to change it.
+/// Family popup with a monospaced filter, and a size popup that scales every text size.
 private struct FontChooserRow: View {
     var title: String
     @Binding var family: String?
-    var monospacedHint: Bool
+    @Binding var scale: Double
+    @State private var monospacedOnly = false
+
+    private var families: [String] {
+        var list = monospacedOnly ? FontSettings.monospacedFamilies : FontSettings.allFamilies
+        // Keep the current choice listed while the filter hides it.
+        if let family, !list.contains(family) { list.insert(family, at: 0) }
+        return list
+    }
 
     var body: some View {
-        LabeledContent(title) {
-            HStack(spacing: 8) {
-                Text(family ?? (monospacedHint ? "System (default)" : "System"))
-                    .font(family.flatMap { NSFont(name: $0, size: 13) ?? FontSettings.shared.font(family: $0, size: 13, weight: .regular) }
-                        .map { Font($0) } ?? .body)
-                    .lineLimit(1)
-                    .foregroundStyle(family == nil ? .secondary : .primary)
-                Button("Choose…") {
-                    FontPanelController.shared.show(current: family) { family = $0 }
-                }
-                if family != nil {
-                    Button {
-                        family = nil
-                    } label: {
-                        Image(systemName: "arrow.counterclockwise")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Use the system font")
-                }
+        Picker(title, selection: $family) {
+            Text("System").tag(String?.none)
+            Divider()
+            ForEach(families, id: \.self) { Text($0).tag(Optional($0)) }
+        }
+        Toggle("Show monospaced fonts only", isOn: $monospacedOnly)
+        Picker("Size", selection: $scale) {
+            ForEach(FontSettings.scales, id: \.self) { value in
+                Text(value == 1 ? "100% (default)" : "\(Int((value * 100).rounded()))%").tag(value)
             }
         }
-    }
-}
-
-/// Drives the shared NSFontPanel and reports the chosen family. Size and effects are hidden;
-/// only the family is used, so the app keeps its own sizes and weights.
-@MainActor
-final class FontPanelController: NSObject {
-    static let shared = FontPanelController()
-
-    private var onChange: ((String) -> Void)?
-    private var current = NSFont.systemFont(ofSize: 13)
-
-    func show(current family: String?, onChange: @escaping (String) -> Void) {
-        self.onChange = onChange
-        current = family.flatMap { FontSettings.shared.font(family: $0, size: 13, weight: .regular) }
-            ?? .systemFont(ofSize: 13)
-        let manager = NSFontManager.shared
-        manager.target = self
-        manager.action = #selector(changeFont(_:))
-        manager.setSelectedFont(current, isMultiple: false)
-        manager.orderFrontFontPanel(self)
-    }
-
-    @objc func changeFont(_ sender: Any?) {
-        let font = NSFontManager.shared.convert(current)
-        current = font
-        if let family = font.familyName { onChange?(family) }
-    }
-
-    @objc func validModesForFontPanel(_ fontPanel: NSFontPanel) -> NSFontPanel.ModeMask {
-        [.collection, .face]
     }
 }

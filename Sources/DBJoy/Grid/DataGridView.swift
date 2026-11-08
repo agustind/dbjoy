@@ -116,8 +116,14 @@ struct DataGridView: NSViewRepresentable {
         }
 
         @objc private func fontsChanged() {
-            tableView?.reloadData()
-            tableView?.headerView?.needsDisplay = true
+            guard let tableView else { return }
+            tableView.rowHeight = GridMetrics.rowHeight
+            if let header = tableView.headerView {
+                header.frame.size.height = GridMetrics.headerHeight
+                header.needsDisplay = true
+            }
+            tableView.enclosingScrollView?.tile()
+            tableView.reloadData()
         }
 
         func rebuildColumns() {
@@ -149,7 +155,8 @@ struct DataGridView: NSViewRepresentable {
                     longest = max(longest, min(text.count, 60))
                 }
             }
-            return min(max(max(header, CGFloat(longest) * 7.6 + 2 * GridMetrics.cellPadding + 4), 72), 420)
+            let ui = FontSettings.shared.uiScale, data = FontSettings.shared.dataScale
+            return min(max(max(header * ui, CGFloat(longest) * 7.6 * data + 2 * GridMetrics.cellPadding + 4), 72), 420 * data)
         }
 
         func updateSortIndicators() {
@@ -546,9 +553,11 @@ final class GridTableView: NSTableView {
     }
 }
 
+@MainActor
 enum GridMetrics {
-    static let rowHeight: CGFloat = 32
-    static let headerHeight: CGFloat = 36
+    /// Rows follow the data font size; the header follows the interface font size.
+    static var rowHeight: CGFloat { (32 * FontSettings.shared.dataScale).rounded() }
+    static var headerHeight: CGFloat { (36 * FontSettings.shared.uiScale).rounded() }
     static let cellPadding: CGFloat = 12
 }
 

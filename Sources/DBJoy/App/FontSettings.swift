@@ -11,6 +11,11 @@ final class FontSettings {
 
     private static let uiKey = "uiFontFamily"
     private static let dataKey = "dataFontFamily"
+    private static let uiScaleKey = "uiFontScale"
+    private static let dataScaleKey = "dataFontScale"
+
+    /// Size choices, as a factor of the app's built-in sizes.
+    static let scales: [Double] = [0.85, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5]
 
     var uiFamily: String? {
         didSet { store(uiFamily, key: Self.uiKey) }
@@ -20,12 +25,43 @@ final class FontSettings {
         didSet { store(dataFamily, key: Self.dataKey) }
     }
 
+    var uiScale: Double {
+        didSet { storeScale(uiScale, key: Self.uiScaleKey) }
+    }
+
+    var dataScale: Double {
+        didSet { storeScale(dataScale, key: Self.dataScaleKey) }
+    }
+
     @ObservationIgnored private var cache: [CacheKey: NSFont] = [:]
 
     private init() {
         uiFamily = Self.validFamily(UserDefaults.standard.string(forKey: Self.uiKey))
         dataFamily = Self.validFamily(UserDefaults.standard.string(forKey: Self.dataKey))
+        uiScale = Self.validScale(UserDefaults.standard.double(forKey: Self.uiScaleKey))
+        dataScale = Self.validScale(UserDefaults.standard.double(forKey: Self.dataScaleKey))
     }
+
+    private static func validScale(_ value: Double) -> Double {
+        scales.contains(value) ? value : 1
+    }
+
+    private func storeScale(_ value: Double, key: String) {
+        UserDefaults.standard.set(value, forKey: key)
+        NotificationCenter.default.post(name: Self.didChangeNotification, object: self)
+    }
+
+    /// Installed families, hiding private ones (names starting with ".").
+    static let allFamilies: [String] = NSFontManager.shared.availableFontFamilies
+        .filter { !$0.hasPrefix(".") }
+        .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+
+    /// Families with at least one fixed-pitch face.
+    static let monospacedFamilies: [String] = {
+        let names = NSFontManager.shared.availableFontNames(with: .fixedPitchFontMask) ?? []
+        let families = Set(names.compactMap { NSFont(name: $0, size: 12)?.familyName })
+        return allFamilies.filter(families.contains)
+    }()
 
     /// Ignores families that were uninstalled since they were chosen.
     private static func validFamily(_ family: String?) -> String? {
@@ -104,11 +140,28 @@ extension Font.Weight {
     }
 }
 
+extension Font.Weight {
+    init(_ weight: NSFont.Weight) {
+        self = switch weight {
+        case .ultraLight: .ultraLight
+        case .thin: .thin
+        case .light: .light
+        case .medium: .medium
+        case .semibold: .semibold
+        case .bold: .bold
+        case .heavy: .heavy
+        case .black: .black
+        default: .regular
+        }
+    }
+}
+
 // MARK: - SwiftUI
 
 extension Font {
     /// Interface font: the chosen UI family, or the system font.
     @MainActor static func ui(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        let size = size * FontSettings.shared.uiScale
         if let family = FontSettings.shared.uiFamily,
            let font = FontSettings.shared.font(family: family, size: size, weight: weight.nsWeight) {
             return Font(font)
@@ -118,20 +171,24 @@ extension Font {
 
     /// Interface font for a text style.
     @MainActor static func ui(_ style: Font.TextStyle, weight: Font.Weight? = nil) -> Font {
-        if let family = FontSettings.shared.uiFamily {
-            let metrics = FontSettings.metrics(style)
-            if let font = FontSettings.shared.font(family: family, size: metrics.size,
-                                                   weight: weight?.nsWeight ?? metrics.weight) {
-                return Font(font)
-            }
+        let settings = FontSettings.shared
+        guard settings.uiFamily != nil || settings.uiScale != 1 else {
+            let font = Font.system(style)
+            return weight.map { font.weight($0) } ?? font
         }
-        let font = Font.system(style)
-        return weight.map { font.weight($0) } ?? font
+        let metrics = FontSettings.metrics(style)
+        let size = metrics.size * settings.uiScale
+        let nsWeight = weight?.nsWeight ?? metrics.weight
+        if let family = settings.uiFamily, let font = settings.font(family: family, size: size, weight: nsWeight) {
+            return Font(font)
+        }
+        return .system(size: size, weight: Font.Weight(nsWeight))
     }
 
     /// Data font (cell values, row details): the chosen data family, or the system font —
     /// monospaced when `monospaced` is set (JSON and similar).
     @MainActor static func data(size: CGFloat, weight: Font.Weight = .regular, monospaced: Bool = false) -> Font {
+        let size = size * FontSettings.shared.dataScale
         if let family = FontSettings.shared.dataFamily,
            let font = FontSettings.shared.font(family: family, size: size, weight: weight.nsWeight) {
             return Font(font)
@@ -141,13 +198,16 @@ extension Font {
 
     /// Data font for a text style.
     @MainActor static func data(_ style: Font.TextStyle, monospaced: Bool = false) -> Font {
-        if let family = FontSettings.shared.dataFamily {
-            let metrics = FontSettings.metrics(style)
-            if let font = FontSettings.shared.font(family: family, size: metrics.size, weight: metrics.weight) {
-                return Font(font)
-            }
+        let settings = FontSettings.shared
+        guard settings.dataFamily != nil || settings.dataScale != 1 else {
+            return .system(style, design: monospaced ? .monospaced : .default)
         }
-        return .system(style, design: monospaced ? .monospaced : .default)
+        let metrics = FontSettings.metrics(style)
+        let size = metrics.size * settings.dataScale
+        if let family = settings.dataFamily, let font = settings.font(family: family, size: size, weight: metrics.weight) {
+            return Font(font)
+        }
+        return .system(size: size, weight: Font.Weight(metrics.weight), design: monospaced ? .monospaced : .default)
     }
 }
 
@@ -166,6 +226,7 @@ extension View {
 
 extension NSFont {
     @MainActor static func ui(size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
+        let size = size * FontSettings.shared.uiScale
         if let family = FontSettings.shared.uiFamily,
            let font = FontSettings.shared.font(family: family, size: size, weight: weight) {
             return font
@@ -178,6 +239,7 @@ extension NSFont {
 
     @MainActor static func data(size: CGFloat, weight: NSFont.Weight = .regular, kind: DataKind = .text,
                                 italic: Bool = false) -> NSFont {
+        let size = size * FontSettings.shared.dataScale
         if let family = FontSettings.shared.dataFamily,
            let font = FontSettings.shared.font(family: family, size: size, weight: weight, italic: italic) {
             return font

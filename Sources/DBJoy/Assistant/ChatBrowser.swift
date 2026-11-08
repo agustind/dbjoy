@@ -46,7 +46,7 @@ struct ChatBrowser: View {
                 .accessibilityIdentifier("chats-new-folder")
             }
             .padding(.horizontal, 14)
-            .frame(height: 38)
+            .frame(minHeight: 38)
             .background(isTopLevelTargeted ? Theme.accentFill : .clear)
             // Dropping a chat here takes it out of its folder.
             .dropDestination(for: String.self) { ids, _ in
@@ -114,7 +114,7 @@ struct ChatBrowser: View {
                     Text("\(chats.count)").font(.ui(size: 11)).foregroundStyle(Theme.textTertiary)
                 }
                 .padding(.horizontal, 8)
-                .frame(height: 28)
+                .frame(minHeight: 28)
                 .background(RoundedRectangle(cornerRadius: 6).fill(dropTarget == folder.id ? Theme.accentFill : .clear))
                 .contentShape(Rectangle())
             }
