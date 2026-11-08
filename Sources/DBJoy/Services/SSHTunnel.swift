@@ -32,6 +32,10 @@ final class SSHTunnel: @unchecked Sendable {
     /// `secret` is the SSH password or private key passphrase, passed through SSH_ASKPASS.
     static func open(_ ssh: SSHTunnelConfig, remoteHost: String, remotePort: Int, secret: String?) async throws -> SSHTunnel {
         guard ssh.isComplete else { throw DatabaseError("SSH tunnel settings are incomplete: host and user are required.") }
+        // ssh would read a host or user that starts with "-" (say -oProxyCommand=…) as an option and run it.
+        for (field, value) in [("host", ssh.host), ("user", ssh.user)] where value.hasPrefix("-") {
+            throw DatabaseError("The SSH \(field) can't start with \"-\".")
+        }
         let localPort = try freeLocalPort()
         let target = remoteHost.isEmpty || remoteHost == "localhost" ? "127.0.0.1" : remoteHost
         var arguments = [
@@ -75,7 +79,8 @@ final class SSHTunnel: @unchecked Sendable {
         case .password:
             arguments += ["-o", "PreferredAuthentications=password,keyboard-interactive", "-o", "PubkeyAuthentication=no"]
         }
-        arguments.append("\(ssh.user)@\(ssh.host)")
+        // "--" ends the options, so the destination is never parsed as one.
+        arguments += ["--", "\(ssh.user)@\(ssh.host)"]
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
