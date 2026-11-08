@@ -31,7 +31,7 @@ struct StarredRail: View {
                     .padding(.bottom, 4)
             } else {
                 Image(systemName: "star.fill")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.ui(size: 11, weight: .semibold))
                     .foregroundStyle(Theme.textTertiary)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 16)
@@ -60,7 +60,7 @@ struct StarredRail: View {
                     }
                     if starred.isEmpty, isExpanded {
                         Text("Star connections in the Connections window to pin them here.")
-                            .font(.system(size: 12))
+                            .font(.ui(size: 12))
                             .foregroundStyle(Theme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.horizontal, 6)
@@ -115,16 +115,16 @@ struct StarredRail: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.ui(size: 14, weight: .medium))
                     .frame(width: 24)
                 if isExpanded {
-                    Text(title).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                    Text(title).font(.ui(size: 13, weight: .medium)).lineLimit(1)
                     Spacer(minLength: 0)
                 }
             }
             .foregroundStyle(Theme.textSecondary)
             .frame(maxWidth: .infinity, alignment: isExpanded ? .leading : .center)
-            .frame(height: 32)
+            .frame(minHeight: 32)
             .padding(.horizontal, isExpanded ? 6 : 0)
             .contentShape(Rectangle())
         }
@@ -177,7 +177,7 @@ private struct StarredItem: View {
                     .overlay(Circle().strokeBorder(isCurrent ? Theme.accent : .clear, lineWidth: 2).padding(-3))
                 if isExpanded {
                     Text(config.displayName)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.ui(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)
                 }
@@ -194,11 +194,11 @@ private struct StarredItem: View {
             if isExpanded {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(config.displayName)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.ui(size: 13, weight: .semibold))
                         .foregroundStyle(isCurrent ? Theme.accentText : Theme.textPrimary)
                         .lineLimit(1)
                     Text(config.host.isEmpty ? "localhost" : config.host)
-                        .font(.system(size: 11))
+                        .font(.ui(size: 11))
                         .foregroundStyle(Theme.textTertiary)
                         .lineLimit(1)
                         .truncationMode(.middle)

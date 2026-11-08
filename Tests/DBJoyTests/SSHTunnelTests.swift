@@ -66,3 +66,20 @@ struct SSHTunnelTests {
         }
     }
 }
+
+/// Checks that run before ssh starts, so they need no SSH server.
+struct SSHTunnelValidationTests {
+    @Test(arguments: [("-oProxyCommand=touch /tmp/pwned", "tunnel"), ("example.com", "-oProxyCommand=touch /tmp/pwned")])
+    func refusesHostOrUserThatLooksLikeAnOption(host: String, user: String) async {
+        let ssh = SSHTunnelConfig(isEnabled: true, host: host, port: 22, user: user, authMethod: .password, privateKeyPath: "")
+        do {
+            let tunnel = try await SSHTunnel.open(ssh, remoteHost: "localhost", remotePort: 5432, secret: "x")
+            tunnel.close()
+            Issue.record("Expected the tunnel to be refused")
+        } catch let error as DatabaseError {
+            #expect(error.message.contains("can't start with \"-\""))
+        } catch {
+            Issue.record("Unexpected error \(error)")
+        }
+    }
+}

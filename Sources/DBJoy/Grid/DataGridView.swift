@@ -110,6 +110,20 @@ struct DataGridView: NSViewRepresentable {
 
         init(parent: DataGridView) {
             self.parent = parent
+            super.init()
+            NotificationCenter.default.addObserver(self, selector: #selector(fontsChanged),
+                                                   name: FontSettings.didChangeNotification, object: nil)
+        }
+
+        @objc private func fontsChanged() {
+            guard let tableView else { return }
+            tableView.rowHeight = GridMetrics.rowHeight
+            if let header = tableView.headerView {
+                header.frame.size.height = GridMetrics.headerHeight
+                header.needsDisplay = true
+            }
+            tableView.enclosingScrollView?.tile()
+            tableView.reloadData()
         }
 
         func rebuildColumns() {
@@ -141,7 +155,8 @@ struct DataGridView: NSViewRepresentable {
                     longest = max(longest, min(text.count, 60))
                 }
             }
-            return min(max(max(header, CGFloat(longest) * 7.6 + 2 * GridMetrics.cellPadding + 4), 72), 420)
+            let ui = FontSettings.shared.uiScale, data = FontSettings.shared.dataScale
+            return min(max(max(header * ui, CGFloat(longest) * 7.6 * data + 2 * GridMetrics.cellPadding + 4), 72), 420 * data)
         }
 
         func updateSortIndicators() {
@@ -538,18 +553,19 @@ final class GridTableView: NSTableView {
     }
 }
 
+@MainActor
 enum GridMetrics {
-    static let rowHeight: CGFloat = 32
-    static let headerHeight: CGFloat = 36
+    /// Rows follow the data font size; the header follows the interface font size.
+    static var rowHeight: CGFloat { (32 * FontSettings.shared.dataScale).rounded() }
+    static var headerHeight: CGFloat { (36 * FontSettings.shared.uiScale).rounded() }
     static let cellPadding: CGFloat = 12
 }
 
 final class GridCellView: NSTableCellView {
-    private static let font = NSFont.systemFont(ofSize: 13)
-    private static let numberFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
-    static let editingFont = NSFont.systemFont(ofSize: 13)
-    private static let expressionFont = NSFontManager.shared.convert(NSFont.monospacedSystemFont(ofSize: 12, weight: .medium),
-                                                                     toHaveTrait: .italicFontMask)
+    private static var font: NSFont { .data(size: 13) }
+    private static var numberFont: NSFont { .data(size: 13, kind: .number) }
+    static var editingFont: NSFont { .data(size: 13) }
+    private static var expressionFont: NSFont { .data(size: 12, weight: .medium, kind: .monospaced, italic: true) }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -638,7 +654,7 @@ final class GridHeaderCell: NSTableHeaderCell {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
         let title = NSAttributedString(string: stringValue.uppercased(), attributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            .font: NSFont.ui(size: 11, weight: .semibold),
             .kern: 0.6,
             .foregroundColor: sortAscending == nil ? Theme.textSecondaryNS : Theme.textPrimaryNS,
             .paragraphStyle: paragraph,

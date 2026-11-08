@@ -190,8 +190,9 @@ final class CopyDatabaseModel: CompareSidesModel {
         task = Task {
             do {
                 let warnings = try await DatabaseCopier().run(from: from, to: to, plan: plan, options: options) { progress in
-                    Task { @MainActor [weak self] in
-                        if self?.phase == .copying { self?.progress = progress }
+                    // The copy task already holds `self` until it finishes.
+                    Task { @MainActor in
+                        if self.phase == .copying { self.progress = progress }
                     }
                 }
                 let seconds = Int(Date().timeIntervalSince(startedAt).rounded())

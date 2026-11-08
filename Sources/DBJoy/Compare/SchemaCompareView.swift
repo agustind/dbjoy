@@ -71,7 +71,7 @@ struct SchemaCompareView: View {
                 .accessibilityIdentifier("compare-schema")
                 if model.sameDatabase {
                     Label("Pick two different databases.", systemImage: "exclamationmark.circle")
-                        .font(.callout)
+                        .font(.ui(.callout))
                         .foregroundStyle(Theme.textSecondary)
                 }
                 Spacer()
@@ -133,12 +133,12 @@ struct SchemaCompareView: View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(model.includedChanges.count) of \(model.actionableChanges.count) changes · \(model.statements.count) statements")
-                    .font(.callout)
+                    .font(.ui(.callout))
                 if let notice = model.notice {
-                    Text(notice).font(.caption).foregroundStyle(Theme.textSecondary)
+                    Text(notice).font(.ui(.caption)).foregroundStyle(Theme.textSecondary)
                 } else if destructiveCount > 0 {
                     Text("\(destructiveCount) included change\(destructiveCount == 1 ? "" : "s") delete\(destructiveCount == 1 ? "s" : "") data")
-                        .font(.caption).foregroundStyle(.red)
+                        .font(.ui(.caption)).foregroundStyle(.red)
                 }
             }
             Spacer()
@@ -198,7 +198,7 @@ struct SideCard: View {
             HStack(spacing: 6) {
                 SectionLabel(title: title)
                     .fixedSize()
-                Text(caption).font(.caption).foregroundStyle(Theme.textTertiary)
+                Text(caption).font(.ui(.caption)).foregroundStyle(Theme.textTertiary)
                 Spacer()
                 if let config = side.config { EnvironmentBadge(environment: config.environment) }
             }
@@ -237,15 +237,15 @@ struct SideCard: View {
     @ViewBuilder private var status: some View {
         switch side.state {
         case .empty:
-            Text(" ").font(.caption)
+            Text(" ").font(.ui(.caption))
         case .connecting:
             HStack(spacing: 6) {
                 ProgressView().controlSize(.mini)
-                Text("Connecting…").font(.caption).foregroundStyle(Theme.textSecondary)
+                Text("Connecting…").font(.ui(.caption)).foregroundStyle(Theme.textSecondary)
             }
         case .ready:
             Label("Connected", systemImage: "checkmark.circle.fill")
-                .font(.caption)
+                .font(.ui(.caption))
                 .foregroundStyle(Theme.textSecondary)
         case .needsPassword(let message):
             HStack(spacing: 6) {
@@ -258,7 +258,7 @@ struct SideCard: View {
             .help(message ?? "This connection doesn't save its password.")
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
+                .font(.ui(.caption))
                 .foregroundStyle(.red)
                 .lineLimit(2)
                 .help(message)
@@ -288,7 +288,7 @@ private struct ChangeList: View {
         VStack(spacing: 0) {
             HStack {
                 Text("\(model.changes.count) difference\(model.changes.count == 1 ? "" : "s")")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.ui(size: 13, weight: .semibold))
                 Spacer()
                 Button("All") { model.includeAll(true) }
                 Button("None") { model.includeAll(false) }
@@ -334,14 +334,14 @@ private struct ChangeRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Text("\(change.objectType) · \(change.summary)")
-                    .font(.caption)
+                    .font(.ui(.caption))
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(2)
             }
             Spacer(minLength: 4)
             if change.isDestructive {
                 Text("DELETES DATA")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.ui(size: 9, weight: .bold))
                     .tracking(0.4)
                     .foregroundStyle(.red)
                     .padding(.horizontal, 5)
@@ -399,7 +399,7 @@ private struct ChangeDetailBody: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("\(change.objectType) \(change.object)").font(.title3.weight(.semibold)).textSelection(.enabled)
+                Text("\(change.objectType) \(change.object)").font(.ui(.title3, weight: .semibold)).textSelection(.enabled)
                 Text(change.summary).foregroundStyle(Theme.textSecondary)
             }
             if change.isDestructive {
@@ -432,7 +432,7 @@ private struct ChangeDetailBody: View {
             if let text {
                 code(text)
             } else {
-                Text("Doesn't exist").font(.callout).foregroundStyle(Theme.textTertiary)
+                Text("Doesn't exist").font(.ui(.callout)).foregroundStyle(Theme.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
                     .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.border, style: StrokeStyle(lineWidth: 1, dash: [4])))
@@ -453,7 +453,7 @@ private struct ChangeDetailBody: View {
 
     private func callout(_ text: String, systemImage: String, color: Color) -> some View {
         Label(text, systemImage: systemImage)
-            .font(.callout)
+            .font(.ui(.callout))
             .foregroundStyle(color)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)

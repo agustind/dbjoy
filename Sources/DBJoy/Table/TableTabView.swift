@@ -92,8 +92,8 @@ private struct Pager: View {
                 .disabled(model.page == 0)
                 .help("Previous page")
             HStack(spacing: 6) {
-                Image(systemName: "list.number").font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
-                Text(label).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                Image(systemName: "list.number").font(.ui(size: 12)).foregroundStyle(Theme.textSecondary)
+                Text(label).font(.ui(size: 13, weight: .semibold)).foregroundStyle(Theme.textPrimary)
                     .monospacedDigit()
                     .lineLimit(1)
                     .fixedSize()
@@ -106,7 +106,7 @@ private struct Pager: View {
                 .help("Next page")
         }
         .padding(.horizontal, 2)
-        .frame(height: 30)
+        .frame(minHeight: 30)
         .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).strokeBorder(Theme.border, lineWidth: 1))
     }
 }
@@ -117,7 +117,7 @@ struct ErrorBanner: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-            Text(message).textSelection(.enabled).font(.system(size: 13)).foregroundStyle(Theme.textPrimary)
+            Text(message).textSelection(.enabled).font(.ui(size: 13)).foregroundStyle(Theme.textPrimary)
             Spacer()
         }
         .padding(.horizontal, 20)
@@ -183,7 +183,7 @@ private struct DataPane: View {
             if model.hasChanges {
                 Circle().fill(Theme.accent).frame(width: 7, height: 7)
                 Text("\(model.changeCount) pending change(s)")
-                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.accentText)
+                    .font(.ui(size: 13, weight: .semibold)).foregroundStyle(Theme.accentText)
                 Spacer()
                 Button("Discard") { model.discardChanges() }
                     .buttonStyle(.ghost)
@@ -195,7 +195,7 @@ private struct DataPane: View {
             } else {
                 if let reason = model.readOnlyReason {
                     Label(reason, systemImage: "lock")
-                        .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                        .font(.ui(size: 12)).foregroundStyle(Theme.textSecondary)
                 } else if !model.selectedRows.isEmpty {
                     Button { model.deleteRows(model.selectedRows) } label: {
                         Label("Delete \(model.selectedRows.count) row(s)", systemImage: "trash")
@@ -204,7 +204,7 @@ private struct DataPane: View {
                     .help("Mark the selected rows for deletion (⌫)")
                 } else {
                     Text("Double-click a cell to edit · ⌫ deletes rows · ⌘S commits")
-                        .font(.system(size: 12)).foregroundStyle(Theme.textTertiary)
+                        .font(.ui(size: 12)).foregroundStyle(Theme.textTertiary)
                 }
                 Spacer()
                 if model.isLoading { ProgressView().controlSize(.small) }
@@ -212,19 +212,19 @@ private struct DataPane: View {
                     let number = (count.isEstimate ? "~" : "") + count.value.formatted()
                     Text(model.rowCountIsFiltered ? "\(number) matching \(count.value == 1 ? "row" : "rows")"
                                   : "\(number) \(count.value == 1 ? "row" : "rows")")
-                        .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                        .font(.ui(size: 12)).foregroundStyle(Theme.textSecondary)
                         .monospacedDigit()
-                    if model.queryDuration != nil { Text("·").font(.system(size: 12)).foregroundStyle(Theme.textTertiary) }
+                    if model.queryDuration != nil { Text("·").font(.ui(size: 12)).foregroundStyle(Theme.textTertiary) }
                 }
                 if let duration = model.queryDuration {
                     Text(formatDuration(duration))
-                        .font(.system(size: 12)).foregroundStyle(Theme.textTertiary)
+                        .font(.ui(size: 12)).foregroundStyle(Theme.textTertiary)
                         .help(model.lastSQL)
                 }
             }
         }
         .padding(.horizontal, 20)
-        .frame(height: 44)
+        .frame(minHeight: 44)
         .background(model.hasChanges ? Theme.accentFill.opacity(0.5) : Color.clear)
         .overlay(alignment: .top) { Rectangle().fill(Theme.separator).frame(height: 1) }
     }
@@ -331,7 +331,7 @@ private struct FilterBar: View {
                     Button("Add Filter") { model.filters.append(RowFilter()) }
                 }
                 Spacer()
-                Text("Return to search · Esc to close").font(.caption).foregroundStyle(.secondary)
+                Text("Return to search · Esc to close").font(.ui(.caption)).foregroundStyle(.secondary)
                 Button("Clear") {
                     model.filters = [RowFilter()]
                     model.applyFilters()
@@ -379,8 +379,8 @@ private struct RowInspector: View {
     var body: some View {
         if rows.isEmpty {
             VStack(spacing: 8) {
-                Image(systemName: "sidebar.right").font(.system(size: 24, weight: .light)).foregroundStyle(Theme.textTertiary)
-                Text("Select rows to see their details").font(.system(size: 13)).foregroundStyle(Theme.textSecondary)
+                Image(systemName: "sidebar.right").font(.ui(size: 24, weight: .light)).foregroundStyle(Theme.textTertiary)
+                Text("Select rows to see their details").font(.ui(size: 13)).foregroundStyle(Theme.textSecondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -390,10 +390,10 @@ private struct RowInspector: View {
                         HStack(alignment: .top, spacing: 8) {
                             Image(systemName: "square.stack.3d.up").foregroundStyle(Theme.accentText)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Editing \(rows.count) rows").font(.system(size: 13, weight: .semibold))
+                                Text("Editing \(rows.count) rows").font(.ui(size: 13, weight: .semibold))
                                     .foregroundStyle(Theme.accentText)
                                 Text("Changes apply to every selected row. “Mixed” fields stay as they are unless you change them.")
-                                    .font(.system(size: 11)).foregroundStyle(Theme.textSecondary)
+                                    .font(.ui(size: 11)).foregroundStyle(Theme.textSecondary)
                             }
                         }
                         .padding(10)
@@ -436,12 +436,12 @@ private struct RowInspector: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(column.name.uppercased())
-                    .font(.system(size: 11, weight: .semibold)).tracking(0.5)
+                    .font(.ui(size: 11, weight: .semibold)).tracking(0.5)
                     .foregroundStyle(Theme.textSecondary)
-                Text(column.typeName).font(.system(size: 11)).foregroundStyle(Theme.textTertiary)
+                Text(column.typeName).font(.ui(size: 11)).foregroundStyle(Theme.textTertiary)
                 if common == nil {
                     Text("MIXED")
-                        .font(.system(size: 9, weight: .bold)).tracking(0.4)
+                        .font(.ui(size: 9, weight: .bold)).tracking(0.4)
                         .foregroundStyle(Theme.accentText)
                         .padding(.horizontal, 5).padding(.vertical, 1)
                         .background(Theme.accentFill, in: RoundedRectangle(cornerRadius: 4))
@@ -497,11 +497,12 @@ private struct RowInspector: View {
                     .id("\(rows)-\(index)")
                     if case .expression = common {
                         Label("SQL expression, evaluated on commit", systemImage: "function")
-                            .font(.system(size: 11)).foregroundStyle(Theme.accentText)
+                            .font(.ui(size: 11)).foregroundStyle(Theme.accentText)
                     }
                 }
             } else {
                 Text(common.map(display) ?? "Mixed")
+                    .font(.data(.body))
                     .textSelection(.enabled)
                     .foregroundStyle(common == nil || common == .null ? Theme.textTertiary : Theme.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -545,7 +546,7 @@ private struct InspectorTextField: View {
         TextField(placeholder, text: $draft, axis: .vertical)
             .textFieldStyle(.roundedBorder)
             .lineLimit(1...10)
-            .font(category == .json ? .body.monospaced() : .body)
+            .font(.data(.body, monospaced: category == .json))
             .focused($focused)
             .onAppear { draft = value?.editingText ?? "" }
             .onChange(of: value) { _, newValue in
@@ -612,7 +613,7 @@ private struct StructureEditorView: View {
                         .disabled(editor.selectedColumns.isEmpty)
                     Spacer()
                     if editor.hasChanges {
-                        Text("Unsaved structure changes").font(.caption).foregroundStyle(.orange)
+                        Text("Unsaved structure changes").font(.ui(.caption)).foregroundStyle(.orange)
                         Button("Revert") { editor.revert() }
                         Button("Review & Apply…") { review() }
                             .buttonStyle(.borderedProminent)
@@ -621,7 +622,7 @@ private struct StructureEditorView: View {
                 .buttonStyle(.borderless)
                 .controlSize(.small)
                 .padding(.horizontal, 10)
-                .frame(height: 30)
+                .frame(minHeight: 30)
             }
             .frame(minHeight: 200)
 
@@ -691,7 +692,7 @@ private struct StructureEditorView: View {
                     let dropped = editor.droppedConstraints.contains(constraint.name)
                     HStack {
                         Text(constraint.type.displayName)
-                            .font(.caption2.bold())
+                            .font(.ui(.caption2, weight: .bold))
                             .padding(.horizontal, 4).padding(.vertical, 1)
                             .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 3))
                         VStack(alignment: .leading, spacing: 2) {
@@ -720,7 +721,7 @@ private struct StructureEditorView: View {
 
     private func sectionHeader(_ title: String, add: @escaping () -> Void) -> some View {
         HStack {
-            Text(title).font(.headline)
+            Text(title).font(.ui(.headline))
             Spacer()
             Button(action: add) { Image(systemName: "plus") }
                 .buttonStyle(.borderless)
@@ -768,13 +769,13 @@ private struct AddIndexSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Add Index").font(.headline)
+            Text("Add Index").font(.ui(.headline))
             TextField("Name", text: $name, prompt: Text("\(table)_\(selected.joined(separator: "_"))_idx"))
             Picker("Method", selection: $method) {
                 ForEach(["btree", "hash", "gin", "gist", "brin"], id: \.self) { Text($0).tag($0) }
             }
             Toggle("Unique", isOn: $isUnique)
-            Text("Columns (in order of selection)").font(.caption).foregroundStyle(.secondary)
+            Text("Columns (in order of selection)").font(.ui(.caption)).foregroundStyle(.secondary)
             List(columns, id: \.self) { column in
                 HStack {
                     Image(systemName: selected.contains(column) ? "checkmark.square.fill" : "square")
@@ -894,7 +895,7 @@ private struct DefinitionPane: View {
             }
             .controlSize(.small)
             .padding(.horizontal, 10)
-            .frame(height: 30)
+            .frame(minHeight: 30)
         }
     }
 }

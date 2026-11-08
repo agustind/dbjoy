@@ -17,12 +17,12 @@ struct AboutView: View {
                 .accessibilityHidden(true)
 
             VStack(spacing: 4) {
-                Text("DBJoy").font(.system(size: 24, weight: .bold)).foregroundStyle(Theme.textPrimary)
-                Text("Version \(version)").font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                Text("DBJoy").font(.ui(size: 24, weight: .bold)).foregroundStyle(Theme.textPrimary)
+                Text("Version \(version)").font(.ui(size: 12)).foregroundStyle(Theme.textSecondary)
             }
 
             Text("A native macOS client for PostgreSQL.")
-                .font(.system(size: 13))
+                .font(.ui(size: 13))
                 .foregroundStyle(Theme.textSecondary)
 
             Rectangle().fill(Theme.separator).frame(height: 1).padding(.horizontal, 24)
@@ -40,11 +40,11 @@ struct AboutView: View {
                         if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
                     }
             }
-            .font(.system(size: 13))
+            .font(.ui(size: 13))
             .foregroundStyle(Theme.textPrimary)
 
             Text("© 2026 Agu Dondo. MIT License.")
-                .font(.system(size: 11))
+                .font(.ui(size: 11))
                 .foregroundStyle(Theme.textTertiary)
                 .padding(.bottom, 6)
         }

@@ -28,7 +28,7 @@ struct AssistantSettingsView: View {
                     Text("Stored in your login keychain.")
                     Link("Get a \(provider.displayName) key", destination: provider.keysURL)
                 }
-                .font(.caption)
+                .font(.ui(.caption))
                 .foregroundStyle(.secondary)
             }
 
@@ -42,7 +42,7 @@ struct AssistantSettingsView: View {
                         + "Production connections always ask first; read-only connections never allow changes."
                      : "The assistant only reads: its queries run in read-only transactions. It can still write SQL "
                         + "into a query tab for you to review and run.")
-                    .font(.caption)
+                    .font(.ui(.caption))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -52,7 +52,7 @@ struct AssistantSettingsView: View {
             } footer: {
                 Text("Your questions, table structures and the query results the assistant needs are sent to "
                      + "\(provider.displayName) to answer. Nothing is sent until you ask something.")
-                    .font(.caption)
+                    .font(.ui(.caption))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

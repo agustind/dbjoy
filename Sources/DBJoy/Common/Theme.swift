@@ -61,11 +61,11 @@ struct PrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(.ui(size: 13, weight: .semibold))
             .lineLimit(1)
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 12)
-            .frame(height: 30)
+            .frame(minHeight: 30)
             .background(Theme.accent.opacity(configuration.isPressed ? 0.8 : 1),
                         in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
             .opacity(isEnabled ? 1 : 0.45)
@@ -81,11 +81,11 @@ struct OutlineButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(.ui(size: 13, weight: .semibold))
             .lineLimit(1)
             .foregroundStyle(isActive ? Theme.accentText : Theme.textPrimary)
             .padding(.horizontal, 11)
-            .frame(height: 30)
+            .frame(minHeight: 30)
             .background(
                 RoundedRectangle(cornerRadius: Theme.cornerRadius)
                     .fill(isActive ? Theme.accentFill : (isHovering || configuration.isPressed ? Theme.elevated : .clear)))
@@ -106,7 +106,7 @@ struct GhostButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .medium))
+            .font(.ui(size: 13, weight: .medium))
             .foregroundStyle(isActive ? Theme.accentText : Theme.textSecondary)
             .padding(.horizontal, 7)
             .frame(minWidth: 28, minHeight: 28)
@@ -145,7 +145,7 @@ struct UnderlineTabs<Value: Hashable>: View {
                 let selected = item.value == selection
                 Button { selection = item.value } label: {
                     Text(item.title)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.ui(size: 14, weight: .medium))
                         .lineLimit(1)
                         .fixedSize()
                         .foregroundStyle(selected ? Theme.accentText : Theme.textSecondary)
@@ -172,12 +172,12 @@ struct SectionLabel: View {
     var body: some View {
         HStack {
             Text(title.uppercased())
-                .font(.system(size: 11, weight: .semibold))
+                .font(.ui(size: 11, weight: .semibold))
                 .tracking(0.6)
                 .foregroundStyle(Theme.textSecondary)
             Spacer()
             if let trailing {
-                Text(trailing).font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.textTertiary)
+                Text(trailing).font(.ui(size: 11, weight: .medium)).foregroundStyle(Theme.textTertiary)
             }
         }
     }
@@ -189,7 +189,7 @@ struct ShortcutBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .medium))
+            .font(.ui(size: 11, weight: .medium))
             .foregroundStyle(Theme.textSecondary)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
@@ -207,10 +207,10 @@ struct SearchInput: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(Theme.textTertiary)
+            Image(systemName: "magnifyingglass").font(.ui(size: 12)).foregroundStyle(Theme.textTertiary)
             TextField(prompt, text: $text)
                 .textFieldStyle(.plain)
-                .font(.system(size: 13))
+                .font(.ui(size: 13))
             if !text.isEmpty {
                 Button { text = "" } label: { Image(systemName: "xmark.circle.fill") }
                     .buttonStyle(.plain)
@@ -221,7 +221,7 @@ struct SearchInput: View {
             }
         }
         .padding(.horizontal, 9)
-        .frame(height: 30)
+        .frame(minHeight: 30)
         .background(Theme.elevated.opacity(0.6), in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
         .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).strokeBorder(Theme.border, lineWidth: 1))
     }
@@ -285,10 +285,10 @@ struct PageHeader<Leading: View, Trailing: View, Toolbar: View>: View {
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 1) {
             if let subtitle {
-                Text(subtitle).font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.textTertiary)
+                Text(subtitle).font(.ui(size: 11, weight: .medium)).foregroundStyle(Theme.textTertiary)
                     .lineLimit(1)
             }
-            Text(title).font(.system(size: 21, weight: .bold)).foregroundStyle(Theme.textPrimary).lineLimit(1)
+            Text(title).font(.ui(size: 21, weight: .bold)).foregroundStyle(Theme.textPrimary).lineLimit(1)
         }
         .help(title)
     }

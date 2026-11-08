@@ -49,10 +49,10 @@ struct AssistantPanel: View {
         HStack(spacing: 8) {
             Image(systemName: "sparkles").foregroundStyle(Theme.accentText)
             VStack(alignment: .leading, spacing: 1) {
-                Text(model.title ?? "Assistant").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                Text(model.title ?? "Assistant").font(.ui(size: 13, weight: .semibold)).foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                 Text(AssistantSettings.model(for: provider))
-                    .font(.system(size: 11)).foregroundStyle(Theme.textTertiary).lineLimit(1)
+                    .font(.ui(size: 11)).foregroundStyle(Theme.textTertiary).lineLimit(1)
             }
             Spacer()
             Button { showsChats.toggle() } label: { Image(systemName: "list.bullet") }
@@ -73,15 +73,15 @@ struct AssistantPanel: View {
                 .help("Hide assistant (⌘J)")
         }
         .padding(.horizontal, 12)
-        .frame(height: 42)
+        .frame(minHeight: 42)
     }
 
     private var missingKey: some View {
         VStack(spacing: 12) {
-            Image(systemName: "key").font(.system(size: 26, weight: .light)).foregroundStyle(Theme.accent)
-            Text("Add an API key to start").font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+            Image(systemName: "key").font(.ui(size: 26, weight: .light)).foregroundStyle(Theme.accent)
+            Text("Add an API key to start").font(.ui(size: 14, weight: .semibold)).foregroundStyle(Theme.textPrimary)
             Text("The assistant uses your own Anthropic or OpenAI key. Keys are kept in your keychain.")
-                .font(.system(size: 12)).foregroundStyle(Theme.textSecondary).multilineTextAlignment(.center)
+                .font(.ui(size: 12)).foregroundStyle(Theme.textSecondary).multilineTextAlignment(.center)
             SettingsLink { Text("Open Settings…") }
                 .buttonStyle(.primary)
         }
@@ -93,11 +93,11 @@ struct AssistantPanel: View {
         VStack(alignment: .leading, spacing: 10) {
             Spacer()
             Text("Ask about \(workspace.currentDatabase)")
-                .font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                .font(.ui(size: 15, weight: .semibold)).foregroundStyle(Theme.textPrimary)
             Text(allowWrites && !workspace.config.readOnly
                  ? "It can read your data, write SQL and, with your approval, make changes."
                  : "It can read your data and write SQL. Changing data is off; turn it on in Settings.")
-                .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                .font(.ui(size: 12)).foregroundStyle(Theme.textSecondary)
             ForEach(["What tables are in this database and how do they relate?",
                      "How many rows were added to each table in the last 7 days?",
                      "Write a query for the top 10 customers by revenue"], id: \.self) { prompt in
@@ -105,7 +105,7 @@ struct AssistantPanel: View {
                     model.draft = prompt
                     model.send()
                 } label: {
-                    Text(prompt).font(.system(size: 12)).multilineTextAlignment(.leading)
+                    Text(prompt).font(.ui(size: 12)).multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.outline)
@@ -125,7 +125,7 @@ struct AssistantPanel: View {
                     if model.isRunning {
                         HStack(spacing: 6) {
                             ProgressView().controlSize(.small)
-                            Text("Working…").font(.system(size: 12)).foregroundStyle(Theme.textTertiary)
+                            Text("Working…").font(.ui(size: 12)).foregroundStyle(Theme.textTertiary)
                         }
                         .id("working")
                     }
@@ -151,7 +151,7 @@ struct AssistantPanel: View {
                         .buttonStyle(.ghost)
                         .help("Don't attach this")
                 }
-                .font(.system(size: 12))
+                .font(.ui(size: 12))
                 .padding(.leading, 10)
                 .background(Theme.accentFill, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.accentStroke, lineWidth: 1))
@@ -160,7 +160,7 @@ struct AssistantPanel: View {
                 TextField(model.attachment == nil ? "Ask about your data…" : "Ask about the attached \(model.attachment!.kind)…",
                           text: $model.draft, axis: .vertical)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 13))
+                    .font(.ui(size: 13))
                     .lineLimit(1...8)
                     .focused($isComposerFocused)
                     .onSubmit { model.send() }
@@ -183,7 +183,7 @@ struct AssistantPanel: View {
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.border, lineWidth: 1))
             Label(model.allowsWrites ? "Can change data, \(AssistantSettings.confirmsWrites ? "with your approval" : "without asking")"
                   : "Read-only", systemImage: model.allowsWrites ? "pencil" : "lock")
-                .font(.system(size: 11))
+                .font(.ui(size: 11))
                 .foregroundStyle(Theme.textTertiary)
                 .help(model.allowsWrites ? "Change this in Settings → AI Assistant."
                       : "Queries run in read-only transactions. Change this in Settings → AI Assistant.")
@@ -202,7 +202,7 @@ private struct ChatItemView: View {
         switch item.kind {
         case .user(let text):
             Text(text)
-                .font(.system(size: 13))
+                .font(.ui(size: 13))
                 .foregroundStyle(Theme.textPrimary)
                 .textSelection(.enabled)
                 .padding(.horizontal, 10)
@@ -216,7 +216,7 @@ private struct ChatItemView: View {
             StepView(step: step, workspace: workspace)
         case .problem(let text):
             Label(text, systemImage: "exclamationmark.triangle.fill")
-                .font(.system(size: 12))
+                .font(.ui(size: 12))
                 .foregroundStyle(.orange)
                 .textSelection(.enabled)
         }
@@ -236,11 +236,11 @@ private struct StepView: View {
             } label: {
                 HStack(spacing: 6) {
                     icon.frame(width: 14)
-                    Text(step.title).font(.system(size: 12, weight: .medium)).foregroundStyle(Theme.textSecondary)
+                    Text(step.title).font(.ui(size: 12, weight: .medium)).foregroundStyle(Theme.textSecondary)
                         .multilineTextAlignment(.leading)
                     if step.sql != nil, step.state != .awaitingApproval {
                         Image(systemName: showsSQL ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.textTertiary)
+                            .font(.ui(size: 9, weight: .semibold)).foregroundStyle(Theme.textTertiary)
                     }
                 }
             }
@@ -264,17 +264,17 @@ private struct StepView: View {
                     ResultPreview(result: result)
                     HStack {
                         Text("\(step.totalRows ?? result.rows.count)\(result.truncated ? "+" : "") row(s)")
-                            .font(.system(size: 11)).foregroundStyle(Theme.textTertiary)
+                            .font(.ui(size: 11)).foregroundStyle(Theme.textTertiary)
                         Spacer()
                         if let sql = step.sql {
                             Button("Open in query tab") { workspace.runInNewQuery(sql) }
                                 .buttonStyle(.ghost)
-                                .font(.system(size: 11))
+                                .font(.ui(size: 11))
                         }
                     }
                 } else if step.state == .done {
                     Text(result.commandTag + (result.rowsAffected.map { " — \($0) row(s) affected" } ?? ""))
-                        .font(.system(size: 11)).foregroundStyle(Theme.textTertiary)
+                        .font(.ui(size: 11)).foregroundStyle(Theme.textTertiary)
                 }
             }
         }
@@ -299,7 +299,7 @@ private struct StepView: View {
             Text(workspace.config.environment.requiresWriteConfirmation
                  ? "This changes data on \(workspace.config.environment.displayName.uppercased()) (\(workspace.currentDatabase))."
                  : "Run this change on \(workspace.currentDatabase.isEmpty ? workspace.config.displayName : workspace.currentDatabase)?")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.ui(size: 12, weight: .semibold))
                 .foregroundStyle(workspace.config.environment.requiresWriteConfirmation ? Color.red : Theme.textPrimary)
             HStack(spacing: 8) {
                 Button { step.resolve(approved: true) } label: { Label("Run", systemImage: "play.fill") }
@@ -322,7 +322,7 @@ private struct ResultPreview: View {
                 GridRow {
                     ForEach(Array(result.columns.enumerated()), id: \.offset) { _, column in
                         Text(column.name.uppercased())
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.ui(size: 10, weight: .semibold))
                             .foregroundStyle(Theme.textTertiary)
                     }
                 }
@@ -359,7 +359,7 @@ struct MarkdownView: View {
                 switch segment {
                 case .text(let paragraph):
                     Text(Self.attributed(paragraph))
-                        .font(.system(size: 13))
+                        .font(.ui(size: 13))
                         .foregroundStyle(Theme.textPrimary)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
@@ -469,7 +469,7 @@ private struct MarkdownTable: View {
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
                             Text(MarkdownView.attributed(cell))
-                                .font(.system(size: 12, weight: index == 0 ? .semibold : .regular))
+                                .font(.ui(size: 12, weight: index == 0 ? .semibold : .regular))
                                 .foregroundStyle(index == 0 ? Theme.textSecondary : Theme.textPrimary)
                                 .lineLimit(1)
                         }
@@ -508,7 +508,7 @@ private struct CodeBlock: View {
                 Spacer()
             }
             .buttonStyle(.ghost)
-            .font(.system(size: 11))
+            .font(.ui(size: 11))
             .padding(4)
         }
         .background(Theme.contentBackground, in: RoundedRectangle(cornerRadius: 8))

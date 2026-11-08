@@ -13,12 +13,12 @@ struct SQLPreviewSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(request.title).font(.headline)
+                Text(request.title).font(.ui(.headline))
                 Spacer()
                 if environment.requiresWriteConfirmation { EnvironmentBadge(environment: environment) }
             }
             Text("\(request.statements.count) statement(s) will run in a single transaction and roll back on any error.")
-                .font(.caption)
+                .font(.ui(.caption))
                 .foregroundStyle(.secondary)
             SQLEditorView(text: $text, selection: $selection, requestedSelection: $requested, isEditable: false)
                 .border(Color.secondary.opacity(0.3))
@@ -72,7 +72,7 @@ struct QuickOpenView: View {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("Open table, view or function…", text: $query)
                     .textFieldStyle(.plain)
-                    .font(.title3)
+                    .font(.ui(.title3))
                     .focused($focused)
                     .onSubmit { open(matches) }
                     .onKeyPress(.downArrow) { selected = min(selected + 1, max(matches.count - 1, 0)); return .handled }
@@ -88,7 +88,7 @@ struct QuickOpenView: View {
                         Text(object.name)
                         Text(object.ref.schema).foregroundStyle(.secondary)
                         Spacer()
-                        Text(object.kind.displayName).font(.caption).foregroundStyle(.secondary)
+                        Text(object.kind.displayName).font(.ui(.caption)).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 2)
                     .listRowBackground(index == selected ? Color.accentColor.opacity(0.2) : Color.clear)
@@ -181,7 +181,7 @@ struct CreateTableSheet: View {
     var body: some View {
         let problem = model.validationMessage(existingTables: existingTables)
         VStack(alignment: .leading, spacing: 12) {
-            Text("Create Table").font(.headline)
+            Text("Create Table").font(.ui(.headline))
             Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
                 GridRow {
                     Text("Name").gridColumnAlignment(.trailing)
@@ -204,7 +204,7 @@ struct CreateTableSheet: View {
             ColumnsEditor(columns: $model.columns, selection: $model.selectedColumns,
                           dataTypes: workspace.dialect?.dataTypes ?? [], allowsPrimaryKeyEditing: true)
             Text("Defaults: plain text like pending is saved as a string; now(), 0, true or 'quoted' are used as SQL.")
-                .font(.caption)
+                .font(.ui(.caption))
                 .foregroundStyle(.secondary)
             HStack {
                 Button { model.columns.append(ColumnDefinition(name: "column_\(model.columns.count + 1)")) } label: {
@@ -219,7 +219,7 @@ struct CreateTableSheet: View {
                 Spacer()
                 if let problem {
                     Label(problem, systemImage: "info.circle")
-                        .font(.callout)
+                        .font(.ui(.callout))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }

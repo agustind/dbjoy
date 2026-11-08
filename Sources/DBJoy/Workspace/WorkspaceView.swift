@@ -89,22 +89,22 @@ private struct ConnectionStatusView: View {
             if message == nil {
                 ProgressView().controlSize(.large)
                 Text("Connecting to \(model.config.displayName)…")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.ui(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Text("\(model.config.user)@\(model.config.host):\(model.config.port)"
                      + (model.config.ssh.isEnabled ? " via SSH \(model.config.ssh.host)" : ""))
-                    .font(.system(size: 12))
+                    .font(.ui(size: 12))
                     .foregroundStyle(Theme.textSecondary)
             } else {
                 ZStack {
                     Circle().fill(model.config.environment.fill)
                     Image(systemName: "bolt.horizontal.fill")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(.ui(size: 22, weight: .semibold))
                         .foregroundStyle(model.config.environment.ink)
                 }
                 .frame(width: 56, height: 56)
                 Text("Couldn't connect to \(model.config.displayName)")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.ui(size: 18, weight: .bold))
                     .foregroundStyle(Theme.textPrimary)
                     .multilineTextAlignment(.center)
                 Text(message ?? "")
@@ -122,7 +122,7 @@ private struct ConnectionStatusView: View {
                     } icon: {
                         Image(systemName: "lightbulb")
                     }
-                    .font(.system(size: 12))
+                    .font(.ui(size: 12))
                     .foregroundStyle(Theme.textSecondary)
                     .frame(maxWidth: 520, alignment: .leading)
                 }
@@ -140,7 +140,7 @@ private struct ConnectionStatusView: View {
                 }
                 if !ConnectionStore.shared.starredConnections.isEmpty {
                     Text("Or pick another starred connection on the left.")
-                        .font(.system(size: 12))
+                        .font(.ui(size: 12))
                         .foregroundStyle(Theme.textTertiary)
                 }
             }
@@ -158,9 +158,9 @@ private struct PasswordPrompt: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Image(systemName: "lock.circle").font(.system(size: 40)).foregroundStyle(.secondary)
-            Text("Password for \(model.config.user)@\(model.config.host)").font(.headline)
-            if let message { Text(message).font(.caption).foregroundStyle(.red).multilineTextAlignment(.center) }
+            Image(systemName: "lock.circle").font(.ui(size: 40)).foregroundStyle(.secondary)
+            Text("Password for \(model.config.user)@\(model.config.host)").font(.ui(.headline))
+            if let message { Text(message).font(.ui(.caption)).foregroundStyle(.red).multilineTextAlignment(.center) }
             SecureField("Password", text: $password)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 260)
@@ -223,12 +223,12 @@ private struct EmptyWorkspace: View {
     var body: some View {
         VStack(spacing: 18) {
             Image(systemName: "cylinder.split.1x2")
-                .font(.system(size: 36, weight: .light))
+                .font(.ui(size: 36, weight: .light))
                 .foregroundStyle(Theme.accent)
             VStack(spacing: 6) {
-                Text(model.currentDatabase).font(.system(size: 21, weight: .bold)).foregroundStyle(Theme.textPrimary)
+                Text(model.currentDatabase).font(.ui(size: 21, weight: .bold)).foregroundStyle(Theme.textPrimary)
                 Text("Pick a table from the sidebar, or start a query.")
-                    .font(.system(size: 13)).foregroundStyle(Theme.textSecondary)
+                    .font(.ui(size: 13)).foregroundStyle(Theme.textSecondary)
             }
             HStack(spacing: 10) {
                 Button { model.newQuery() } label: { Label("New query", systemImage: "plus") }
@@ -256,7 +256,7 @@ private struct EmptyWorkspace: View {
     private func shortcut(_ keys: String, _ title: String) -> some View {
         HStack(spacing: 6) {
             ShortcutBadge(text: keys)
-            Text(title).font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+            Text(title).font(.ui(size: 12)).foregroundStyle(Theme.textSecondary)
         }
     }
 }
@@ -327,7 +327,7 @@ struct TabStrip: View {
                 .accessibilityIdentifier("assistant-toggle")
                 .padding(.trailing, 10)
         }
-        .frame(height: 42)
+        .frame(minHeight: 42)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.separator).frame(height: 1) }
     }
 }
@@ -343,16 +343,16 @@ private struct TabChip: View {
     var body: some View {
         HStack(spacing: 7) {
             Image(systemName: tab.systemImage)
-                .font(.system(size: 11, weight: .medium))
+                .font(.ui(size: 11, weight: .medium))
                 .foregroundStyle(isSelected ? Theme.accentText : Theme.textTertiary)
             Text(tab.title)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                .font(.ui(size: 13, weight: isSelected ? .semibold : .medium))
                 .foregroundStyle(isSelected ? Theme.textPrimary : Theme.textSecondary)
                 .lineLimit(1)
             ZStack {
                 if isHovering || isSelected {
                     Button(action: close) {
-                        Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                        Image(systemName: "xmark").font(.ui(size: 8, weight: .bold))
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Theme.textTertiary)
@@ -365,7 +365,7 @@ private struct TabChip: View {
         }
         .padding(.leading, 10)
         .padding(.trailing, 8)
-        .frame(height: 28)
+        .frame(minHeight: 28)
         .frame(maxWidth: 220)
         .background(
             RoundedRectangle(cornerRadius: 7)

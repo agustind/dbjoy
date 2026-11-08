@@ -40,8 +40,8 @@ struct WelcomeView: View {
                     .frame(width: 44, height: 44)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Connections").font(.system(size: 21, weight: .bold)).foregroundStyle(Theme.textPrimary)
-                    Text("\(store.connections.count) saved").font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                    Text("Connections").font(.ui(size: 21, weight: .bold)).foregroundStyle(Theme.textPrimary)
+                    Text("\(store.connections.count) saved").font(.ui(size: 12)).foregroundStyle(Theme.textSecondary)
                 }
                 Spacer()
                 Button { newConnection() } label: { Label("New connection", systemImage: "plus") }
@@ -58,10 +58,10 @@ struct WelcomeView: View {
 
             if store.connections.isEmpty {
                 VStack(spacing: 10) {
-                    Image(systemName: "cylinder").font(.system(size: 32, weight: .light)).foregroundStyle(Theme.accent)
-                    Text("No connections yet").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                    Image(systemName: "cylinder").font(.ui(size: 32, weight: .light)).foregroundStyle(Theme.accent)
+                    Text("No connections yet").font(.ui(size: 15, weight: .semibold)).foregroundStyle(Theme.textPrimary)
                     Text("Create a connection to a PostgreSQL server to get started.")
-                        .font(.system(size: 13)).foregroundStyle(Theme.textSecondary)
+                        .font(.ui(size: 13)).foregroundStyle(Theme.textSecondary)
                     Button { newConnection() } label: { Label("New connection", systemImage: "plus") }
                         .buttonStyle(.primary)
                         .padding(.top, 6)
@@ -105,10 +105,10 @@ struct WelcomeView: View {
                     if filtered.isEmpty {
                         VStack(spacing: 6) {
                             Text("No connections match “\(search)”")
-                                .font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.textPrimary)
+                                .font(.ui(size: 14, weight: .semibold)).foregroundStyle(Theme.textPrimary)
                             Button("Clear search") { search = "" }
                                 .buttonStyle(.plain)
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.ui(size: 12, weight: .medium))
                                 .foregroundStyle(Theme.accentText)
                         }
                     }
@@ -125,7 +125,7 @@ struct WelcomeView: View {
                     .buttonStyle(.outline)
                     .disabled(selection == nil)
                 Spacer()
-                Text("Double-click to connect").font(.system(size: 12)).foregroundStyle(Theme.textTertiary)
+                Text("Double-click to connect").font(.ui(size: 12)).foregroundStyle(Theme.textTertiary)
                 Button {
                     if let id = selection, let config = store.connection(id: id) { connect(config) }
                 } label: { Label("Connect", systemImage: "bolt.fill") }
@@ -135,7 +135,7 @@ struct WelcomeView: View {
                     .accessibilityIdentifier("connect")
             }
             .padding(.horizontal, 20)
-            .frame(height: 56)
+            .frame(minHeight: 56)
         }
         .background(Theme.contentBackground)
         .tint(Theme.accent)
@@ -178,22 +178,22 @@ private struct ConnectionRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(config.displayName)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.ui(size: 14, weight: .semibold))
                         .foregroundStyle(isSelected ? Theme.accentText : Theme.textPrimary)
                     if config.readOnly {
-                        Image(systemName: "lock.fill").font(.system(size: 10)).foregroundStyle(Theme.textTertiary)
+                        Image(systemName: "lock.fill").font(.ui(size: 10)).foregroundStyle(Theme.textTertiary)
                             .help("Read-only")
                     }
                 }
                 Text(verbatim: "\(config.user)@\(config.host):\(config.port)\(config.database.isEmpty ? "" : "/" + config.database)")
-                    .font(.system(size: 12))
+                    .font(.ui(size: 12))
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
             EnvironmentBadge(environment: config.environment)
             Button(action: toggleStar) {
                 Image(systemName: config.isStarred ? "star.fill" : "star")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.ui(size: 14, weight: .medium))
                     .foregroundStyle(config.isStarred ? Color.yellow : Theme.textTertiary)
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle())

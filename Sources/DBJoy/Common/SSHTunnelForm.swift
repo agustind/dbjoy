@@ -34,7 +34,7 @@ struct SSHTunnelFields: View {
             }
             if Sandbox.isActive && ssh.privateKeyBookmark == nil {
                 Text("Click Choose… to give DBJoy access to the key file.")
-                    .font(.caption)
+                    .font(.ui(.caption))
                     .foregroundStyle(.secondary)
             }
             SecureField("Key passphrase", text: $secret, prompt: Text("Only if the key has one"))
@@ -44,7 +44,7 @@ struct SSHTunnelFields: View {
             Text(Sandbox.isActive
                  ? "The SSH agent isn't available to DBJoy from the Mac App Store. Use a private key instead."
                  : "Uses the keys loaded in your SSH agent (ssh-add).")
-                .font(.caption)
+                .font(.ui(.caption))
                 .foregroundStyle(.secondary)
         }
     }
@@ -82,9 +82,9 @@ struct SSHTunnelSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Connect through an SSH tunnel").font(.headline)
+                Text("Connect through an SSH tunnel").font(.ui(.headline))
                 Text("DBJoy forwards a local port through this SSH server to \(model.config.host):\(model.config.port), so the database only has to be reachable from the SSH server.")
-                    .font(.callout)
+                    .font(.ui(.callout))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

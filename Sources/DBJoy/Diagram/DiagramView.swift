@@ -18,14 +18,14 @@ struct DiagramView: View {
                     Button { model.zoom = max(0.3, model.zoom - 0.1) } label: { Image(systemName: "minus") }
                         .buttonStyle(.ghost)
                     Text("\(Int(model.zoom * 100))%")
-                        .font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                        .font(.ui(size: 13, weight: .semibold)).monospacedDigit()
                         .foregroundStyle(Theme.textPrimary)
                         .frame(width: 48)
                     Button { model.zoom = min(2, model.zoom + 0.1) } label: { Image(systemName: "plus") }
                         .buttonStyle(.ghost)
                 }
                 .padding(.horizontal, 2)
-                .frame(height: 30)
+                .frame(minHeight: 30)
                 .overlay(RoundedRectangle(cornerRadius: Theme.cornerRadius).strokeBorder(Theme.border, lineWidth: 1))
                 Button { Task { await model.load() } } label: { Label("Re-layout", systemImage: "arrow.clockwise") }
                     .buttonStyle(.outline)
@@ -144,8 +144,8 @@ private struct DiagramTableBox: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
-                Image(systemName: node.kind.systemImage).font(.caption)
-                Text(node.name).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Image(systemName: node.kind.systemImage).font(.ui(.caption))
+                Text(node.name).font(.ui(size: 12, weight: .semibold)).lineLimit(1)
             }
             .foregroundStyle(node.kind == .table ? Theme.accentText : Theme.textPrimary)
             .padding(.horizontal, 8)
@@ -163,11 +163,11 @@ private struct DiagramTableBox: View {
                             Color.clear
                         }
                     }
-                    .font(.system(size: 9))
+                    .font(.ui(size: 9))
                     .frame(width: 12)
-                    Text(column.name).font(.system(size: 11)).lineLimit(1)
+                    Text(column.name).font(.ui(size: 11)).lineLimit(1)
                     Spacer(minLength: 4)
-                    Text(column.dataType).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(column.dataType).font(.ui(size: 10)).foregroundStyle(.secondary).lineLimit(1)
                 }
                 .padding(.horizontal, 8)
                 .frame(height: DiagramNode.rowHeight)
