@@ -23,6 +23,10 @@ as drivers.
 Download the latest `DBJoy-<version>.dmg` from [Releases](https://github.com/agustind/dbjoy/releases), open it, and
 drag **DBJoy** to Applications. Builds are signed with a Developer ID and notarized by Apple.
 
+DBJoy checks GitHub for a new release at launch and once a day, and offers to install it and relaunch (turn this off
+in Settings → General, or use **DBJoy → Check for Updates…**). It installs an update only if the download matches the
+release's checksum and is signed and notarized with DBJoy's Developer ID.
+
 - macOS 15 or later, Apple Silicon
 - Self-contained: libpq, pg_dump (for backups) and psql (for copying databases) ship inside the app
 

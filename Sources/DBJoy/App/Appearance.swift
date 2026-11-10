@@ -48,6 +48,7 @@ struct SettingsView: View {
 private struct GeneralSettingsView: View {
     @AppStorage(AppearanceMode.storageKey) private var appearance: AppearanceMode = .system
     @AppStorage(StarredRail.newWindowKey) private var starredOpensNewWindow = false
+    @AppStorage(Updater.automaticKey) private var checksForUpdates = true
 
     var body: some View {
         Form {
@@ -65,6 +66,18 @@ private struct GeneralSettingsView: View {
                 Text("Hold ⌘ while clicking a starred connection to do the opposite.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            if Updater.isSupported {
+                Section {
+                    Toggle("Check for updates automatically", isOn: $checksForUpdates)
+                    Button("Check Now") { Task { await Updater.shared.check(userInitiated: true) } }
+                } footer: {
+                    Text("DBJoy \(Updater.currentVersion). New releases come from GitHub and install only if they're signed "
+                         + "and notarized by DBJoy's developer.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)

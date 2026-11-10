@@ -60,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         FilePanels.recordLaunch()
         AppearanceMode.current.apply()
         MCPServer.shared.applySettings()
+        Updater.shared.start()
         NSApp.activate()
     }
 
@@ -88,6 +89,9 @@ struct AppCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button("About DBJoy") { openWindow(id: "about") }
+            if Updater.isSupported {
+                Button("Check for Updates…") { Task { await Updater.shared.check(userInitiated: true) } }
+            }
         }
 
         CommandGroup(before: .toolbar) {
