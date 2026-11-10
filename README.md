@@ -44,6 +44,8 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 - Ask Claude Code about your data from any project: DBJoy shares the connections you choose over MCP, so Claude Code
   can look up tables and run read-only queries with DBJoy's saved passwords and SSH tunnels.
   See [Use DBJoy from Claude Code](#use-dbjoy-from-claude-code)
+- Let Claude Code propose changes on the connections you choose: each one opens a panel in DBJoy with the SQL, and
+  runs only if you click Run
 
 ### Connections
 - Saved connections grouped into folders and tagged by environment: local, development, testing, staging, production
@@ -151,7 +153,8 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
 When you work on a project with [Claude Code](https://claude.com/claude-code), it can query that project's database
 through DBJoy. Ask "how many schools do we have?" from the terminal, and Claude Code finds the connection in DBJoy,
 checks the tables and runs the query itself. You don't copy credentials into the project: DBJoy connects with the
-password in your Keychain and any SSH tunnel you set up, and the shared connections are read-only.
+password in your Keychain and any SSH tunnel you set up, and the shared connections are read-only unless you let
+clients propose changes.
 
 ### Set it up
 1. In DBJoy, open **Settings → MCP** and turn on **Let MCP clients read your databases**.
@@ -180,10 +183,16 @@ Run `/mcp` in Claude Code to check that DBJoy is connected.
 | `list_tables` | Lists a schema's tables, views and routines, and the other schemas |
 | `describe_table` | Shows columns, keys, indexes, constraints and foreign keys |
 | `run_query` | Runs SELECT, WITH, EXPLAIN, SHOW or VALUES and returns the first 100 rows |
+| `execute_sql` | Proposes a change. It runs only after you approve it in DBJoy, on connections where you turned on **Can propose changes** |
 
 ### Safety
-- **Read-only.** Statements other than reads are refused, and every query runs in a read-only transaction, which
-  also stops writes hidden in CTEs or functions. Queries time out after 30 seconds.
+- **Read-only.** `run_query` refuses statements other than reads, and every query runs in a read-only transaction,
+  which also stops writes hidden in CTEs or functions. Queries time out after 30 seconds.
+- **Changes need your approval.** `execute_sql` works only on connections where you turned on **Can propose
+  changes** under Shared connections (never on read-only connections). Each change opens a floating panel with the
+  client's summary, the SQL and the connection's environment, without taking focus from the app you're in. It runs
+  only if you click Run, in one transaction with a 30-second timeout. Closing the panel or not answering within 4
+  minutes declines it.
 - **Local only.** The server listens on 127.0.0.1, so nothing else on your network can reach it. Each request needs
   the token, and requests from web pages on other sites are rejected.
 - **You see what ran.** **Settings → MCP → Recent activity** lists each request: client, connection and SQL.

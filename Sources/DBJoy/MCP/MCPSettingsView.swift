@@ -69,12 +69,20 @@ struct MCPSettingsView: View {
                                 }
                             }
                         }
+                        if config.allowsMCP, !config.readOnly {
+                            Toggle("Can propose changes; you approve each one", isOn: Binding(
+                                get: { config.mcpAllowsWrites }, set: { store.setMCPAllowsWrites($0, for: config.id) }))
+                                .font(.callout)
+                                .padding(.leading, 28)
+                        }
                     }
                 } header: {
                     Text("Shared connections")
                 } footer: {
-                    footnote("Clients only see the connections turned on here. In a project's CLAUDE.md, name the one it "
-                             + "uses, e.g. “The database is the DBJoy connection Andromeda (dev).”")
+                    footnote("Clients only see the connections turned on here, and only read them. With Can propose "
+                             + "changes, a client's change opens a panel in DBJoy and runs only if you click Run. In a "
+                             + "project's CLAUDE.md, name the connection it uses, e.g. “The database is the DBJoy "
+                             + "connection Andromeda (dev).”")
                 }
 
                 Section {

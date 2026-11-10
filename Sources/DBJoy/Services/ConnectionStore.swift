@@ -91,6 +91,12 @@ final class ConnectionStore {
         persist()
     }
 
+    func setMCPAllowsWrites(_ allowed: Bool, for id: UUID) {
+        guard let index = connections.firstIndex(where: { $0.id == id }) else { return }
+        connections[index].mcpAllowsWrites = allowed
+        persist()
+    }
+
     func toggleStar(_ id: UUID) {
         guard let index = connections.firstIndex(where: { $0.id == id }) else { return }
         connections[index].isStarred.toggle()
@@ -104,6 +110,7 @@ final class ConnectionStore {
         copy.id = UUID()
         copy.isStarred = false
         copy.allowsMCP = false
+        copy.mcpAllowsWrites = false
         copy.name = config.displayName + " copy"
         save(copy, password: config.savePassword ? Keychain.password(for: config.id) : nil)
     }

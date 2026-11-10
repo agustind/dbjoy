@@ -57,16 +57,18 @@ enum Theme {
 
 /// Filled lilac button for the primary action of a view.
 struct PrimaryButtonStyle: ButtonStyle {
+    /// Red for actions on production.
+    var isDestructive = false
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
             .lineLimit(1)
-            .foregroundStyle(Theme.onAccent)
+            .foregroundStyle(isDestructive ? .white : Theme.onAccent)
             .padding(.horizontal, 12)
             .frame(height: 30)
-            .background(Theme.accent.opacity(configuration.isPressed ? 0.8 : 1),
+            .background((isDestructive ? Color.red : Theme.accent).opacity(configuration.isPressed ? 0.8 : 1),
                         in: RoundedRectangle(cornerRadius: Theme.cornerRadius))
             .opacity(isEnabled ? 1 : 0.45)
             .contentShape(Rectangle())

@@ -89,12 +89,38 @@ struct MCPServerTests {
         #expect(response.body.isEmpty)
     }
 
-    @Test func listsReadOnlyTools() async throws {
+    @Test func listsToolsWithOnlyExecuteSQLWriting() async throws {
         let response = await post(["jsonrpc": "2.0", "id": "a", "method": "tools/list"], to: server())
         let tools = try #require(try JSONValue.parse(response.body)["result"]?["tools"]?.arrayValue)
         #expect(tools.compactMap { $0["name"]?.stringValue }
-                == [MCPServer.listConnections, MCPServer.listTables, MCPServer.describeTable, MCPServer.runQuery])
-        #expect(tools.allSatisfy { $0["annotations"]?["readOnlyHint"] == true })
+                == [MCPServer.listConnections, MCPServer.listTables, MCPServer.describeTable, MCPServer.runQuery, MCPServer.executeSQL])
+        #expect(tools.filter { $0["annotations"]?["readOnlyHint"] == false }.compactMap { $0["name"]?.stringValue } == [MCPServer.executeSQL])
+    }
+
+    @Test func refusesChangesWithoutAskingUnlessAllowed() async {
+        var asked = 0
+        let readOnly = ConnectionConfig(name: "A", readOnly: true, allowsMCP: true, mcpAllowsWrites: true)
+        let notAllowed = ConnectionConfig(name: "B", allowsMCP: true)
+        let allowed = ConnectionConfig(name: "C", allowsMCP: true, mcpAllowsWrites: true)
+        let server = MCPServer(connections: { [readOnly, notAllowed, allowed] }, password: { _ in nil }, token: Self.token,
+                               approve: { _ in asked += 1; return false })
+        for name in ["A", "B"] {
+            let (text, isError) = await server.callTool(MCPServer.executeSQL, arguments: ["connection": .string(name),
+                                                        "sql": "DELETE FROM t", "summary": "x"], client: "test")
+            #expect(isError)
+            #expect(text.contains("doesn't accept changes"))
+        }
+        let (control, failed) = await server.callTool(MCPServer.executeSQL, arguments: ["connection": "C",
+                                                      "sql": "BEGIN; DELETE FROM t; COMMIT", "summary": "x"], client: "test")
+        #expect(failed)
+        #expect(control.contains("transaction control"))
+        #expect(asked == 0)
+
+        let (declined, declinedFailed) = await server.callTool(MCPServer.executeSQL, arguments: ["connection": "C",
+                                                               "sql": "DELETE FROM t", "summary": "x"], client: "test")
+        #expect(declinedFailed)
+        #expect(declined.contains("declined"))
+        #expect(asked == 1)
     }
 
     @Test func rejectsUnknownMethodsAndGET() async throws {
@@ -137,11 +163,13 @@ struct MCPServerIntegrationTests {
     static let env = ProcessInfo.processInfo.environment
     static let token = "integration-token"
 
-    private func runningServer() async throws -> (MCPServer, Int) {
+    private func runningServer(approve: @escaping @MainActor (MCPChangeRequest) async -> Bool = { _ in false })
+        async throws -> (MCPServer, Int) {
         let config = ConnectionConfig(name: "Sample", host: "localhost", port: Int(Self.env["DBJOY_TEST_PG_PORT"] ?? "") ?? 55432,
-                                      user: "postgres", database: "dbjoy_sample", sslMode: .disable, allowsMCP: true)
+                                      user: "postgres", database: "dbjoy_sample", sslMode: .disable, allowsMCP: true,
+                                      mcpAllowsWrites: true)
         let password = Self.env["DBJOY_TEST_PG_PASSWORD"] ?? "secret"
-        let server = MCPServer(connections: { [config] }, password: { _ in password }, token: Self.token)
+        let server = MCPServer(connections: { [config] }, password: { _ in password }, token: Self.token, approve: approve)
         let port = Int.random(in: 49152...60000)
         server.start(port: port)
         for _ in 0..<50 where server.status != .running(port: port) {
@@ -206,6 +234,30 @@ struct MCPServerIntegrationTests {
         }
         #expect(results.count == 8)
         #expect(results.allSatisfy { !$0.1 })
+    }
+
+    @Test func runsApprovedChangesInOneTransaction() async throws {
+        var requests: [MCPChangeRequest] = []
+        let (server, port) = try await runningServer(approve: { requests.append($0); return true })
+        defer { server.stop() }
+        _ = try await call(MCPServer.executeSQL, ["sql": "DROP TABLE IF EXISTS mcp_scratch; CREATE TABLE mcp_scratch (n int)",
+                                                  "summary": "Create scratch"], port: port)
+
+        let failing = try await call(MCPServer.executeSQL, ["sql": "INSERT INTO mcp_scratch VALUES (1); INSERT INTO mcp_scratch VALUES ('x')",
+                                                            "summary": "Bad insert"], port: port)
+        #expect(failing.isError)
+        #expect(failing.text.contains("rolled back"))
+        #expect(try await call(MCPServer.runQuery, ["sql": "SELECT count(*) FROM mcp_scratch"], port: port).text.contains("0"))
+
+        let insert = try await call(MCPServer.executeSQL, ["sql": "INSERT INTO mcp_scratch VALUES (1), (2)", "summary": "Add two"], port: port)
+        #expect(!insert.isError)
+        #expect(insert.text.contains("Committed"))
+        #expect(requests.map(\.summary) == ["Create scratch", "Bad insert", "Add two"])
+        #expect(requests.last?.client == "MCP client")
+
+        let count = try await call(MCPServer.runQuery, ["sql": "SELECT count(*) AS n FROM mcp_scratch"], port: port)
+        #expect(count.text.contains("2"))
+        _ = try await call(MCPServer.executeSQL, ["sql": "DROP TABLE mcp_scratch", "summary": "Clean up"], port: port)
     }
 
     @Test func appliesTheStatementTimeout() async throws {

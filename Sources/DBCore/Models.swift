@@ -126,6 +126,8 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
     public var options: [String: String]
     /// Reachable, read-only, by MCP clients such as Claude Code through DBJoy's local MCP server.
     public var allowsMCP: Bool
+    /// MCP clients may also propose changes, each run only after the user approves it in DBJoy.
+    public var mcpAllowsWrites: Bool
 
     public init(
         id: UUID = UUID(),
@@ -144,7 +146,8 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
         icon: String? = nil,
         ssh: SSHTunnelConfig = SSHTunnelConfig(),
         options: [String: String] = [:],
-        allowsMCP: Bool = false
+        allowsMCP: Bool = false,
+        mcpAllowsWrites: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -163,6 +166,7 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
         self.ssh = ssh
         self.options = options
         self.allowsMCP = allowsMCP
+        self.mcpAllowsWrites = mcpAllowsWrites
     }
 
     public init(from decoder: Decoder) throws {
@@ -185,7 +189,8 @@ public struct ConnectionConfig: Codable, Identifiable, Hashable, Sendable {
             icon: try c.decodeIfPresent(String.self, forKey: .icon),
             ssh: try c.decodeIfPresent(SSHTunnelConfig.self, forKey: .ssh) ?? SSHTunnelConfig(),
             options: try c.decodeIfPresent([String: String].self, forKey: .options) ?? [:],
-            allowsMCP: try c.decodeIfPresent(Bool.self, forKey: .allowsMCP) ?? false
+            allowsMCP: try c.decodeIfPresent(Bool.self, forKey: .allowsMCP) ?? false,
+            mcpAllowsWrites: try c.decodeIfPresent(Bool.self, forKey: .mcpAllowsWrites) ?? false
         )
     }
 
