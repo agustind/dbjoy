@@ -178,6 +178,11 @@ private struct DataPane: View {
         }
     }
 
+    private var lastCommit: EditRecord? {
+        guard let id = model.lastCommitID, let workspace = model.workspace else { return nil }
+        return EditHistory.shared.records(for: workspace.config.id).first { $0.id == id && $0.revertedAt == nil }
+    }
+
     private var footer: some View {
         HStack(spacing: 10) {
             if model.hasChanges {
@@ -202,6 +207,12 @@ private struct DataPane: View {
                     }
                     .buttonStyle(.ghost)
                     .help("Mark the selected rows for deletion (⌫)")
+                } else if let commit = lastCommit {
+                    Text("Committed \(commit.summary)")
+                        .font(.system(size: 12)).foregroundStyle(Theme.textSecondary)
+                    Button { model.workspace?.revert(commit) } label: { Label("Undo", systemImage: "arrow.uturn.backward") }
+                        .buttonStyle(.ghost)
+                        .help("Revert this commit. Shows the SQL first.")
                 } else {
                     Text("Double-click a cell to edit · ⌫ deletes rows · ⌘S commits")
                         .font(.system(size: 12)).foregroundStyle(Theme.textTertiary)

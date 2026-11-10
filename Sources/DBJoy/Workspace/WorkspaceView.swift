@@ -67,6 +67,15 @@ struct WorkspaceRoot: View {
         .sheet(isPresented: $model.isQuickOpenPresented) {
             QuickOpenView(model: model)
         }
+        .sheet(isPresented: $model.isEditHistoryPresented, onDismiss: {
+            // One sheet at a time: the SQL preview opens once the history is gone.
+            if let record = model.recordToRevert {
+                model.recordToRevert = nil
+                model.revert(record)
+            }
+        }) {
+            EditHistorySheet(model: model)
+        }
     }
 }
 

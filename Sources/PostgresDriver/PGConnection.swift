@@ -242,13 +242,15 @@ final class PGConnection: @unchecked Sendable {
         }
     }
 
-    func runTransaction(_ conn: OpaquePointer, _ statements: [TransactionStatement]) throws {
+    func runTransaction(_ conn: OpaquePointer, _ statements: [TransactionStatement]) throws -> [QueryResult] {
         let wasInTransaction = transactionStatus(conn).isInTransaction
         // Inside an open transaction, use a savepoint so we only roll back our own work.
         _ = try exec(conn, wasInTransaction ? "SAVEPOINT dbjoy_apply" : "BEGIN")
         do {
+            var results: [QueryResult] = []
             for statement in statements {
                 let result = try exec(conn, statement.sql)
+                results.append(result)
                 if let expected = statement.expectedRows, let affected = result.rowsAffected, affected != expected {
                     throw DatabaseError(
                         "Expected \(expected) row(s) to be affected but \(affected) were. All changes were rolled back.",
@@ -256,6 +258,7 @@ final class PGConnection: @unchecked Sendable {
                 }
             }
             _ = try exec(conn, wasInTransaction ? "RELEASE SAVEPOINT dbjoy_apply" : "COMMIT")
+            return results
         } catch {
             _ = try? exec(conn, wasInTransaction ? "ROLLBACK TO SAVEPOINT dbjoy_apply" : "ROLLBACK")
             throw error

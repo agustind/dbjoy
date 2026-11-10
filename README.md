@@ -80,6 +80,10 @@ drag **DBJoy** to Applications. Builds are signed with a Developer ID and notari
   commit. Type `\=` to store text that starts with `=`
 - Tables without a primary key are read-only
 - On production connections, every write shows its SQL for review and asks for confirmation; drop and truncate always confirm
+- Undo a commit: after ⌘S the table's bottom bar offers **Undo**, and **Database → Edit History…** (⇧⌘Y) lists every
+  commit made from table tabs with its SQL and a **Revert…** button. DBJoy records each row as it was before the commit
+  and as the commit left it, and the revert runs in one transaction. If someone edited or deleted one of those rows
+  since, the revert changes nothing and says why
 
 ### Structure
 - Edit columns (name, type, nullability, default, comment), indexes, constraints and foreign keys
@@ -204,6 +208,7 @@ Run `/mcp` in Claude Code to check that DBJoy is connected.
 | Run all | ⇧⌘↩ |
 | Cancel query | ⌘. |
 | Commit changes / save query | ⌘S |
+| Edit history | ⇧⌘Y |
 | Refresh | ⌘R |
 | Search rows / find in editor | ⌘F |
 | ER diagram | ⇧⌘E |

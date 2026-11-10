@@ -141,6 +141,10 @@ struct AppCommands: Commands {
             Button("Discard Changes") { tableTab?.discardChanges() }
                 .disabled(!(tableTab?.hasChanges ?? false))
 
+            Button("Edit History…") { workspace?.isEditHistoryPresented = true }
+                .keyboardShortcut("y", modifiers: [.command, .shift])
+                .disabled(workspace == nil)
+
             Button("Find…") {
                 if let tableTab {
                     tableTab.showSearch()

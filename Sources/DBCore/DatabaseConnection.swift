@@ -39,7 +39,9 @@ public protocol DatabaseConnection: AnyObject, Sendable {
     func query(_ sql: String, parameters: [String?]) async throws -> QueryResult
 
     /// Runs statements atomically: commits only if all succeed and row-count guards hold.
-    func executeInTransaction(_ statements: [TransactionStatement]) async throws
+    /// Returns each statement's result, in order.
+    @discardableResult
+    func executeInTransaction(_ statements: [TransactionStatement]) async throws -> [QueryResult]
 
     func transactionStatus() async -> TransactionStatus
 

@@ -97,6 +97,8 @@ final class WorkspaceModel {
     var createTable: CreateTableModel?
     var export: ExportModel?
     var isQuickOpenPresented = false
+    var isEditHistoryPresented = false
+    var recordToRevert: EditRecord?
     /// The AI assistant panel, created the first time it's shown.
     private(set) var assistant: AssistantModel?
     var isAssistantVisible = false
@@ -524,6 +526,29 @@ final class WorkspaceModel {
         } catch {
             errorMessage = (error as? DatabaseError)?.fullDescription ?? error.localizedDescription
             return false
+        }
+    }
+
+    /// Asks to run a commit's undo SQL, then runs it in one transaction. Fails, changing nothing,
+    /// when a row it restores was edited or deleted after the commit.
+    func revert(_ record: EditRecord) {
+        guard record.database == currentDatabase else {
+            errorMessage = "This commit was made in database \(record.database). Switch to it to revert the commit."
+            return
+        }
+        sqlPreview = SQLPreviewRequest(title: "Revert \(record.summary) in \(record.table.name)?", statements: record.undo,
+                                       actionTitle: "Revert") { [self] in
+            guard let connection else { return }
+            do {
+                try await connection.executeInTransaction(record.undo.map { TransactionStatement($0, expectedRows: 1) })
+                EditHistory.shared.markReverted(record.id, connectionID: config.id)
+                for tab in tabs {
+                    if case .table(let model) = tab, model.ref == record.table, !model.hasChanges { await model.reloadData() }
+                }
+            } catch {
+                errorMessage = "Couldn't revert, so nothing changed. A row it restores may have been edited or deleted "
+                    + "since the commit.\n\n" + ((error as? DatabaseError)?.fullDescription ?? error.localizedDescription)
+            }
         }
     }
 

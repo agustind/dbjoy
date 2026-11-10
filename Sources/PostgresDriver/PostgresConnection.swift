@@ -54,7 +54,8 @@ public final class PostgresConnection: DatabaseConnection {
         try await pg.perform { pg, conn in try pg.exec(conn, sql, parameters: parameters) }
     }
 
-    public func executeInTransaction(_ statements: [TransactionStatement]) async throws {
+    @discardableResult
+    public func executeInTransaction(_ statements: [TransactionStatement]) async throws -> [QueryResult] {
         try await pg.perform { pg, conn in try pg.runTransaction(conn, statements) }
     }
 

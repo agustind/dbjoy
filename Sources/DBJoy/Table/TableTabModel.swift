@@ -67,6 +67,8 @@ final class TableTabModel: Identifiable {
     var relations: TableRelations?
     var definition: String?
     var structureEditor: StructureEditorModel?
+    /// The commit this tab made last, offered for undo in the footer.
+    var lastCommitID: UUID?
 
     private var didLoadData = false
 
@@ -388,10 +390,31 @@ final class TableTabModel: Identifiable {
     func commit(preview: Bool = false) {
         guard hasChanges, let workspace else { return }
         let statements = pendingStatements()
+        let changes = pendingChanges()
         let apply: @MainActor () async -> Void = { [self] in
             guard let connection else { return }
             do {
-                try await connection.executeInTransaction(statements.map { TransactionStatement($0, expectedRows: 1) })
+                let dialect = connection.dialect
+                let groups = changes.map { dialect.capturingStatements(for: $0, in: ref) }
+                var results = try await connection.executeInTransaction(groups.flatMap { $0 })[...]
+                let primaryKey = primaryKeyIndexes.map { columns[$0].name }
+                let generated = Set(structure?.columns.filter(\.isGenerated).map(\.name) ?? [])
+                var undo: [String] = []
+                for (change, group) in zip(changes, groups) {
+                    let own = Array(results.prefix(group.count))
+                    results = results.dropFirst(group.count)
+                    if let statement = dialect.undoStatement(for: change, in: ref, primaryKey: primaryKey,
+                                                             generated: generated, results: own) {
+                        undo.append(statement)
+                    }
+                }
+                // Revert newest first, so e.g. a row deleted and re-inserted with the same key comes back.
+                if undo.count == changes.count {
+                    let record = EditRecord(database: connection.databaseName, table: ref, changes: changes,
+                                            statements: statements, undo: undo.reversed())
+                    EditHistory.shared.record(record, connectionID: workspace.config.id)
+                    lastCommitID = record.id
+                }
                 await reloadData()
             } catch {
                 workspace.errorMessage = "Changes were rolled back.\n\n"
