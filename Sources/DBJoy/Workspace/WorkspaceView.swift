@@ -58,6 +58,11 @@ struct WorkspaceRoot: View {
         .sheet(item: $model.sqlPreview) { request in
             SQLPreviewSheet(request: request, environment: model.config.environment)
         }
+        .sheet(item: $model.routineCall) { request in
+            RoutineCallSheet(request: request) { arguments in
+                model.call(request.routine, parameters: request.parameters, arguments: arguments)
+            }
+        }
         .sheet(item: $model.createTable) { createModel in
             CreateTableSheet(model: createModel, workspace: model)
         }

@@ -215,6 +215,7 @@ struct SidebarView: View {
             Button("Export…") { model.startExport([ref]) }
         } else {
             Button("Open Definition") { model.openDefinition(of: ref) }
+            Button(ref.kind == .procedure ? "Call Procedure…" : "Run Function…") { model.runRoutine(ref) }
         }
         Button("Copy Name") {
             NSPasteboard.general.clearContents()

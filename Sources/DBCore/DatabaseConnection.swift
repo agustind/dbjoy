@@ -59,6 +59,8 @@ public protocol DatabaseConnection: AnyObject, Sendable {
     func structure(of ref: ObjectRef) async throws -> TableStructure
     /// DDL / source for the object.
     func definition(of ref: ObjectRef) async throws -> String
+    /// A function's or procedure's parameters, in order. Throws when the routine no longer exists.
+    func parameters(of routine: ObjectRef) async throws -> [RoutineParameter]
     func relations(of ref: ObjectRef) async throws -> TableRelations
     /// All foreign keys between tables in a schema, for diagrams.
     func foreignKeys(schema: String) async throws -> [ForeignKeyInfo]
@@ -93,5 +95,9 @@ public struct RowCount: Hashable, Sendable {
 public extension DatabaseConnection {
     func query(_ sql: String) async throws -> QueryResult {
         try await query(sql, parameters: [])
+    }
+
+    func parameters(of routine: ObjectRef) async throws -> [RoutineParameter] {
+        throw DatabaseError("This database doesn't support running routines from DBJoy.")
     }
 }

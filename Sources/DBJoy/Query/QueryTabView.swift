@@ -22,6 +22,13 @@ struct QueryTabView: View {
                     .buttonStyle(.outline)
                     .help("Open a .sql file in the editor, optionally running it (⌘O)")
                 transactionControls
+                if let routine = model.routine {
+                    Button { workspace.runRoutine(routine) } label: {
+                        Label(routine.kind == .procedure ? "Call procedure…" : "Run function…", systemImage: "function")
+                    }
+                    .buttonStyle(.outline)
+                    .help("Run \(routine.name) with parameters you enter, in a new query tab")
+                }
                 Button { model.isSaveSheetPresented = true } label: { Label("Save", systemImage: "square.and.arrow.down") }
                     .buttonStyle(.outline)
                     .help("Save query (⌘S)")

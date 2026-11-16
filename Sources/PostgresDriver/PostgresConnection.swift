@@ -258,6 +258,26 @@ public final class PostgresConnection: DatabaseConnection {
         }
     }
 
+    public func parameters(of routine: ObjectRef) async throws -> [RoutineParameter] {
+        // The LEFT JOIN keeps one row for a routine without parameters, so "no rows" means it's gone.
+        let result = try await query("""
+            SELECT coalesce(p.proargnames[a.i], ''), format_type(a.t, NULL), coalesce(p.proargmodes[a.i]::text, 'i'),
+                   pg_get_function_arg_default(p.oid, a.i::int)
+            FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+            LEFT JOIN LATERAL unnest(coalesce(p.proallargtypes, p.proargtypes::oid[])) WITH ORDINALITY AS a(t, i) ON true
+            WHERE n.nspname = $1 AND p.proname = $2 AND pg_get_function_identity_arguments(p.oid) = $3
+            ORDER BY a.i
+            """, parameters: [routine.schema, routine.name, routine.arguments ?? ""])
+        guard !result.rows.isEmpty else {
+            throw DatabaseError("\(routine) no longer exists. If you changed its parameters, refresh the sidebar and try again.")
+        }
+        return result.rows.compactMap { row in
+            guard let type = row[1] else { return nil }
+            return RoutineParameter(name: row[0] ?? "", type: type,
+                                    mode: RoutineParameter.Mode(rawValue: row[2] ?? "i") ?? .in, defaultValue: row[3])
+        }
+    }
+
     private func tableDDL(_ structure: TableStructure) -> String {
         let d = dialect
         let table = d.qualifiedName(structure.ref)

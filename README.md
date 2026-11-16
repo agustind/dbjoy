@@ -68,6 +68,8 @@ release's checksum and is signed and notarized with DBJoy's Developer ID.
 - Database and schema switcher; tables, views, materialized views, foreign tables, functions and procedures
 - Fuzzy sidebar search, and ⌘P to open any object across all schemas
 - Relations view per table (outgoing and incoming foreign keys, dependent views) and a schema-wide ER diagram
+- Run a function or call a procedure from the sidebar or its definition tab. DBJoy asks for each parameter (a value,
+  NULL or its default) and runs the call in a new query tab
 
 ### Data
 - Paged grid with column sorting, a row details panel for long values, and copy as TSV or INSERT

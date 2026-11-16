@@ -25,6 +25,8 @@ final class QueryTabModel: Identifiable {
     var savedQueryID: UUID?
     /// The .sql file this tab was opened from, if any.
     var fileURL: URL?
+    /// The function or procedure whose definition this tab shows, which the tab offers to run.
+    var routine: ObjectRef?
     /// Current editor selection (UTF-16), kept in sync by the editor.
     var selection = NSRange(location: 0, length: 0)
     /// Set to move the editor selection, e.g. to an error position.

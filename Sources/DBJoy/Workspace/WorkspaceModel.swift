@@ -62,6 +62,13 @@ struct SQLPreviewRequest: Identifiable {
     var action: @MainActor () async -> Void
 }
 
+/// A function or procedure to run once the user fills in its parameters.
+struct RoutineCallRequest: Identifiable {
+    let id = UUID()
+    var routine: ObjectRef
+    var parameters: [RoutineParameter]
+}
+
 /// State for one connection window: the live session, schema browser and open tabs.
 @MainActor @Observable
 final class WorkspaceModel {
@@ -94,6 +101,7 @@ final class WorkspaceModel {
     var errorMessage: String?
     var confirmation: ConfirmationRequest?
     var sqlPreview: SQLPreviewRequest?
+    var routineCall: RoutineCallRequest?
     var createTable: CreateTableModel?
     var export: ExportModel?
     var isQuickOpenPresented = false
@@ -320,10 +328,33 @@ final class WorkspaceModel {
             do {
                 let sql = try await connection.definition(of: ref)
                 newQuery(sql: sql, title: ref.name)
+                if ref.kind.isRoutine, case .query(let tab) = selectedTab { tab.routine = ref }
             } catch {
                 errorMessage = error.localizedDescription
             }
         }
+    }
+
+    /// Runs a function or procedure in a new query tab, first asking for its parameters if it has any.
+    func runRoutine(_ ref: ObjectRef) {
+        guard let connection else { return }
+        Task {
+            do {
+                let parameters = try await connection.parameters(of: ref)
+                if parameters.contains(where: \.isInput) {
+                    routineCall = RoutineCallRequest(routine: ref, parameters: parameters)
+                } else {
+                    call(ref, parameters: parameters, arguments: [])
+                }
+            } catch {
+                errorMessage = (error as? DatabaseError)?.fullDescription ?? error.localizedDescription
+            }
+        }
+    }
+
+    func call(_ ref: ObjectRef, parameters: [RoutineParameter], arguments: [RoutineArgument]) {
+        guard let dialect else { return }
+        runInNewQuery(dialect.callStatement(for: ref, parameters: parameters, arguments: arguments), title: "\(ref.name)()")
     }
 
     func newQuery(sql: String = "", title: String? = nil, savedQuery: SavedQuery? = nil) {
